@@ -1,22 +1,50 @@
 #import "GridView.h"
 #import "CollectionView.h"
 
+@interface GridView ()
+
+@property (nonatomic, copy) NSArray *gridRows;
+
+@end
+
 @interface GridRow : NSView
 
 @property (nonatomic, copy) NSArray *cells;
+@property (nonatomic, assign) BOOL highlighted;
+@property (nonatomic, unsafe_unretained) GridView *gridView;
 
 @end
 
 @implementation GridRow
 
-@synthesize cells = _cells;
+@synthesize cells = _cells, highlighted, gridView;
 
 - (id)initWithFrame:(NSRect)frameRect {
     if (self = [super initWithFrame:frameRect]) {
         //self.translatesAutoresizingMaskIntoConstraints = NO;
         //self.autoresizesSubviews = NO;
+        NSTrackingArea *trackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds options:NSTrackingMouseEnteredAndExited | NSTrackingCursorUpdate | NSTrackingInVisibleRect | NSTrackingActiveInKeyWindow owner:self userInfo:nil];
+        [self addTrackingArea:trackingArea];
     }
     return self;
+}
+
+- (void)mouseEntered:(NSEvent *)theEvent {
+    highlighted = YES;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)mouseExited:(NSEvent *)theEvent {
+    highlighted = NO;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)mouseUp:(NSEvent *)theEvent {
+    [gridView.delegate gridView:gridView didSelectRowAtIndex:[gridView.gridRows indexOfObject:self] - 1];
+}
+
+- (void)cursorUpdate:(NSEvent *)event {
+    [[NSCursor pointingHandCursor] set];
 }
 
 - (void)setCells:(NSArray *)cells {
@@ -28,21 +56,20 @@
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
+    if (highlighted) {
+        [[NSColor colorWithCalibratedRed:.84 green:.93 blue:.96 alpha:1] set];
+        NSRectFill(self.bounds);
+    }
+    
     [[NSColor colorWithCalibratedWhite:.9 alpha:1] set];
-    NSRectFill(NSMakeRect(0, 1, self.bounds.size.width, 1));
+    NSRectFill(NSMakeRect(0, 0, self.bounds.size.width, 1));
 }
-
-@end
-
-@interface GridView ()
-
-@property (nonatomic, copy) NSArray *gridRows;
 
 @end
 
 @implementation GridView
 
-@synthesize dataSource, gridRows;
+@synthesize delegate, dataSource, gridRows;
 
 - (id)initWithFrame:(NSRect)frameRect {
     if (self = [super initWithFrame:frameRect]) {
@@ -80,6 +107,7 @@
     }
     
     self.gridRows = newGridRows;
+    [gridRows makeObjectsPerformSelector:@selector(setGridView:) withObject:self];
     [self setNeedsLayout:YES];
 }
 
@@ -115,7 +143,7 @@
 }
 
 - (CGFloat)totalHeight {
-    return [self rowHeight] * gridRows.count;
+    return [self rowHeight] * gridRows.count + 1;
 }
 
 - (CGSize)intrinsicContentSize {
@@ -132,14 +160,11 @@
         assert([row superview] == self);
         row.frame = NSMakeRect(0, self.bounds.size.height - rowHeight * (i + 1), self.bounds.size.width, rowHeight);
         
-        NSLog(@"row at %@", NSStringFromRect(row.frame));
-        
         CGFloat x = 0;
         for (int j = 0; j < row.cells.count; j++) {
             NSTextField *cell = [row.cells objectAtIndex:j];
             CGFloat columnWidth = [self widthOfColumn:j];
-            cell.frame = NSMakeRect(x, 0, columnWidth, rowHeight);
-            NSLog(@"cell frame %@", NSStringFromRect(cell.frame));
+            cell.frame = NSMakeRect(x, -5, columnWidth, rowHeight);
             x += columnWidth;
         }
         
