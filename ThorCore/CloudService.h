@@ -1,16 +1,18 @@
+#import <ReactiveCocoa/ReactiveCocoa.h>
 
-@interface CloudInfo
+@interface CloudInfo : NSObject
 
 @property (nonatomic, copy) NSString *hostname, *email, *password;
 
 @end
 
 typedef enum {
-    CloudAppStateStarted,
-    CloudAppStateStopped
-} CloudAppState;
+    FoundryAppStateStarted,
+    FoundryAppStateStopped,
+    FoundryAppStateUnknown
+} FoundryAppState;
 
-@interface CloudApp : NSObject
+@interface FoundryApp : NSObject
 
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy) NSArray *uris;
@@ -18,17 +20,35 @@ typedef enum {
     instances,
     memory,
     disk;
-@property (nonatomic, assign) CloudAppState state;
+@property (nonatomic, assign) FoundryAppState state;
+
+@end
+
+@interface FoundryAppInstanceStats : NSObject
+
+@property (nonatomic, copy) NSString *ID, *host;
+@property (nonatomic, assign) NSInteger port, disk;
+@property (nonatomic, assign) float cpu, memory, uptime;
 
 @end
 
 
-@protocol CloudService <NSObject>
+@protocol FoundryService <NSObject>
 
-- (CloudApp *)getAppWithName:(NSString *)name;
+- (RACSubscribable *)getApps; // NSArray of FoundryApp
+- (RACSubscribable *)getAppWithName:(NSString *)name; // FoundryApp
+- (RACSubscribable *)getStatsForAppWithName:(NSString *)name; // NSArray of FoundryAppInstanceStats
 
 @end
 
-@interface FixtureCloudService : NSObject <CloudService>
+@interface FoundryService : NSObject <FoundryService>
+
+@property (nonatomic, strong) CloudInfo *cloudInfo;
+
+- (id)initWithCloudInfo:(CloudInfo *)cloudInfo;
+
+@end
+
+@interface FixtureCloudService : NSObject <FoundryService>
 
 @end

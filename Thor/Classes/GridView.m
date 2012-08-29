@@ -129,13 +129,13 @@
     //label.backgroundColor = [NSColor redColor];
     label.font = [NSFont boldSystemFontOfSize:12];
     label.textColor = [NSColor colorWithCalibratedWhite:.33 alpha:1];
-    label.stringValue = title;
+    label.stringValue = title == nil ? @"" : title;
     return label;
 }
 
 - (CGFloat)widthOfColumn:(NSUInteger)column {
     // TODO make variable, memoize
-    return 100;
+    return 107;
 }
 
 - (CGFloat)rowHeight {

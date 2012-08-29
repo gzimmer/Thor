@@ -1,4 +1,5 @@
 #import "DeploymentController.h"
+#import "NSObject+AssociateDisposable.h"
 
 @implementation DeploymentInfo
 
@@ -6,11 +7,17 @@
 
 @end
 
+@interface DeploymentController ()
+
+@property (nonatomic, strong) FoundryService *service;
+
+@end
+
 static NSArray *instanceColumns = nil;
 
 @implementation DeploymentController
 
-@synthesize deploymentInfo, cloudApp, title, deploymentView, breadcrumbController, instanceStats;
+@synthesize service, deploymentInfo, app, title, deploymentView, breadcrumbController, instanceStats;
 
 + (void)initialize {
     instanceColumns = [NSArray arrayWithObjects:@"ID", @"Host name", @"CPU", @"Memory", @"Disk", @"Uptime", nil];
@@ -20,6 +27,7 @@ static NSArray *instanceColumns = nil;
     if (self = [super initWithNibName:@"DeploymentView" bundle:[NSBundle mainBundle]]) {
         self.title = leDeploymentInfo.appName;
         self.deploymentInfo = leDeploymentInfo;
+        self.service = [[FoundryService alloc] initWithCloudInfo:deploymentInfo.target];
     }
     return self;
 }
@@ -27,9 +35,15 @@ static NSArray *instanceColumns = nil;
 - (void)awakeFromNib {
     NSError *error = nil;
     
-    self.instanceStats = [[FixtureVMCService new] getInstanceStatsForAppName:deploymentInfo.appName target:deploymentInfo.target error:&error];
-    self.cloudApp = [[FixtureCloudService new] getAppWithName:deploymentInfo.appName];
-    [self.deploymentView.instancesGrid reloadData];
+    self.associatedDisposable = [[RACSubscribable combineLatest:[NSArray arrayWithObjects:[service getStatsForAppWithName:deploymentInfo.appName], [service getAppWithName:deploymentInfo.appName], nil] reduce:^ id (id x) { return x; }] subscribeNext:^ (id x) {
+        RACTuple *tuple = (RACTuple *)x;
+        self.instanceStats = tuple.first;
+        self.app = tuple.second;
+        [deploymentView.instancesGrid reloadData];
+        deploymentView.needsLayout = YES;
+    } error:^ (NSError *error) {
+        [NSApp presentError:error];
+    }];
 }
 
 - (id<BreadcrumbItem>)breadcrumbItem {
@@ -49,7 +63,7 @@ static NSArray *instanceColumns = nil;
 }
 
 - (NSString *)gridView:(GridView *)gridView titleForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
-    VMCInstanceStats *stats = [instanceStats objectAtIndex:row];
+    FoundryAppInstanceStats *stats = [instanceStats objectAtIndex:row];
     
     switch (columnIndex) {
         case 0:
@@ -57,13 +71,13 @@ static NSArray *instanceColumns = nil;
         case 1:
             return stats.host;
         case 2:
-            return stats.cpu;
+            return [NSString stringWithFormat:@"%f", stats.cpu];
         case 3:
-            return stats.memory;
+            return [NSString stringWithFormat:@"%f", stats.memory];
         case 4:
-            return stats.disk;
+            return [NSString stringWithFormat:@"%f", stats.disk];
         case 5:
-            return stats.uptime;
+            return [NSString stringWithFormat:@"%f", stats.uptime];
     }
     
     BOOL columnIndexIsValid = NO;

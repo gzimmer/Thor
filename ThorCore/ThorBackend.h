@@ -19,7 +19,6 @@
 @interface App : NSManagedObject
 
 @property (strong) NSString *displayName, *localRoot;
-@property (strong) NSNumber *defaultMemory, *defaultInstances;
 
 + (NSFetchRequest *)fetchRequest;
 
@@ -47,6 +46,8 @@ static NSInteger TargetHostnameAndEmailPreviouslyConfigured = 3;
 
 - (NSArray *)getConfiguredApps:(NSError **)error;
 - (NSArray *)getConfiguredTargets:(NSError **)error;
+- (NSArray *)getDeploymentsForApp:(App *)app error:(NSError **)error;
+- (Target *)getTargetForDeployment:(Deployment *)deployment error:(NSError **)error;
 
 @end
 

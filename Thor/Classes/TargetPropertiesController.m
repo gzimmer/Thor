@@ -2,12 +2,17 @@
 
 @implementation TargetPropertiesController
 
-@synthesize targetPropertiesView, target;
+@synthesize editing, targetPropertiesView, target;
 
 - (id)init {
     if (self = [super initWithNibName:@"TargetPropertiesView" bundle:[NSBundle mainBundle]]) {
     }
     return self;
+}
+
+- (void)awakeFromNib {
+    targetPropertiesView.windowLabel.stringValue = editing ? @"Edit Cloud" : @"Add Cloud";
+    targetPropertiesView.confirmButton.title = editing ? @"Save" : @"OK";
 }
 
 - (void)buttonClicked:(NSButton *)button {

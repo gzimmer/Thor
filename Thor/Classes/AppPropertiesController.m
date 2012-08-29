@@ -2,12 +2,17 @@
 
 @implementation AppPropertiesController
 
-@synthesize appPropertiesView, app;
+@synthesize editing, appPropertiesView, app;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppPropertiesView" bundle:[NSBundle mainBundle]]) {
     }
     return self;
+}
+
+- (void)awakeFromNib {
+    appPropertiesView.windowLabel.stringValue = editing ? @"Edit App" : @"Add App";
+    appPropertiesView.confirmButton.title = editing ? @"Save" : @"OK";
 }
 
 - (void)buttonClicked:(NSButton *)button {
@@ -20,6 +25,17 @@
         else {
             [NSApp endSheet:self.view.window];
         }
+    }
+    else if (button == appPropertiesView.browseButton) {
+        NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+        openPanel.canChooseDirectories = YES;
+        openPanel.canChooseFiles = NO;
+        openPanel.allowsMultipleSelection = NO;
+        [openPanel beginSheetModalForWindow:self.view.window completionHandler:^ void (NSInteger result) {
+            if (result == NSFileHandlingPanelOKButton) {
+                app.localRoot = [[openPanel.URLs objectAtIndex:0] absoluteString];
+            }
+        }];
     }
     else {
         [[ThorBackend sharedContext] rollback];
