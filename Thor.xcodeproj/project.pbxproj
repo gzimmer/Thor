@@ -772,9 +772,9 @@
 		F32F9736154908CB002CCF27 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				CLASSPREFIX = t3oss;
+				CLASSPREFIX = ironFoundry;
 				LastUpgradeCheck = 0440;
-				ORGANIZATIONNAME = "Three Step Solutions";
+				ORGANIZATIONNAME = "Iron Foundry";
 			};
 			buildConfigurationList = F32F9739154908CB002CCF27 /* Build configuration list for PBXProject "Thor" */;
 			compatibilityVersion = "Xcode 3.2";
