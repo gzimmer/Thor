@@ -14,13 +14,6 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-Technology & Tools Used
----
-The tools used to create, build and maintain this project include Xcode. So far there is no other peripheral software used at this time, of course, that is always subject to change.
-Technical Description
----
-This application uses the [VMC CLI](https://github.com/cloudfoundry/vmc) or  [Iron Foundry VMC CLI for .NET](https://github.com/IronFoundry/vmc) as an underlying tool. The VMC tool acts as an abstraction layer to protect from changes that are made to the underlying cloud controller and other Cloud Foundry architecture.
-Workflow
 ---
 **What's Being Worked On?**
 
