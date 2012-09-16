@@ -32,10 +32,11 @@
 
 - (void)updateItems {
     NSError *error = nil;
-    self.items = [[dataSource getItems:&error] mutableCopy];
+    self.items = [[dataSource itemsForItemsController:self error:&error] mutableCopy];
 }
+
 - (NSCollectionViewItem *)collectionView:(CollectionView *)collectionView newItemForRepresentedObject:(id)object {
-    return [dataSource itemsController:self getCollectionViewItemForItem:object collectionView:collectionView];
+    return [dataSource itemsController:self collectionViewItemForCollectionView:collectionView item:object];
 }
 
 - (void)awakeFromNib {
@@ -43,32 +44,28 @@
     
     self.itemsView.collectionView.dataSource = self;
     
-    [self updateItems];
     self.itemsView.bar.barButton.title = @"New…";
     self.itemsView.bar.barButton.target = self;
     self.itemsView.bar.barButton.action = @selector(addItemClicked);
 //    [self.arrayController addObserver:self forKeyPath:@"selection" options:NSKeyValueObservingOptionNew context:nil];
 }
 
+- (void)viewWillAppear {
+    [self updateItems];
+}
+
 - (void)insertObject:(Target *)t inTargetsAtIndex:(NSUInteger)index {
     [items insertObject:t atIndex:index];
 }
 
-- (void)pushSelectedItem {
-    id item = [self.items objectAtIndex:arrayController.selectionIndex];
-    
-    NSViewController<BreadcrumbControllerAware> *itemController = [dataSource getControllerForItem:item];
-    
-    [self.breadcrumbController pushViewController:itemController animated:YES];
-    NSMutableIndexSet *empty = [NSMutableIndexSet indexSet];
-    [empty removeAllIndexes];
-    arrayController.selectionIndexes = empty;
+- (void)clearSelection {
+    arrayController.selectionIndexes = [NSIndexSet indexSet];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     if (object == arrayController) {
         if (arrayController.selectionIndexes.count)
-            [self performSelector:@selector(pushSelectedItem) withObject:nil afterDelay:0];
+            [self performSelector:@selector(clearSelection) withObject:nil afterDelay:0];
     }
     else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
@@ -80,12 +77,9 @@
 }
 
 - (void)addItemClicked {
-    self.itemPropertiesController = [dataSource getPropertiesControllerForNewItem];
+    self.itemPropertiesController = [dataSource newItemPropertiesControllerForItemsController:self];
     
-    
-    NSWindow *window = [[SheetWindow alloc] initWithContentRect:(NSRect){ .origin = NSZeroPoint, .size = self.itemPropertiesController.view.intrinsicContentSize } styleMask:NSTitledWindowMask backing:NSBackingStoreBuffered defer:NO];
-    
-    window.contentView = itemPropertiesController.view;
+    NSWindow *window = [SheetWindow sheetWindowWithView:itemPropertiesController.view];
     
     [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:NULL];
 }

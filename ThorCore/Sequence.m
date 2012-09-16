@@ -50,7 +50,7 @@
 - (id)skip:(NSInteger)howMany {
     NSMutableArray *result = [NSMutableArray arrayWithCapacity:self.count - howMany];
     
-    for (int i = howMany; i < self.count; i++)
+    for (NSInteger i = howMany; i < self.count; i++)
         [result addObject:[self objectAtIndex:i]];
     
     return result;
@@ -87,6 +87,18 @@
         
         [result addObject:obj];
     }
+    
+    return result;
+}
+
+- (NSArray *)concat:(NSArray *)other {
+    NSMutableArray *result = [NSMutableArray arrayWithCapacity:self.count + other.count];
+    
+    for (id obj in self)
+        [result addObject:obj];
+    
+    for (id obj in other)
+        [result addObject:obj];
     
     return result;
 }

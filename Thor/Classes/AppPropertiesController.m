@@ -2,7 +2,7 @@
 
 @implementation AppPropertiesController
 
-@synthesize editing, appPropertiesView, app;
+@synthesize editing, appPropertiesView, app, objectController;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppPropertiesView" bundle:[NSBundle mainBundle]]) {
@@ -17,6 +17,7 @@
 
 - (void)buttonClicked:(NSButton *)button {
     if (button == appPropertiesView.confirmButton) {
+        [objectController commitEditing];
         NSError *error = nil;
         if (![[ThorBackend sharedContext] save:&error]) {
             [NSApp presentError:error];
@@ -33,7 +34,7 @@
         openPanel.allowsMultipleSelection = NO;
         [openPanel beginSheetModalForWindow:self.view.window completionHandler:^ void (NSInteger result) {
             if (result == NSFileHandlingPanelOKButton) {
-                app.localRoot = [[openPanel.URLs objectAtIndex:0] absoluteString];
+                app.localRoot = [[openPanel.URLs objectAtIndex:0] path];
             }
         }];
     }

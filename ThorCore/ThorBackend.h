@@ -26,9 +26,24 @@
 
 @end
 
-@interface Deployment : NSObject
+typedef enum {
+    DeploymentMemoryAmount64 = 0,
+    DeploymentMemoryAmount128 = 1,
+    DeploymentMemoryAmount256 = 2,
+    DeploymentMemoryAmount512 = 3,
+    DeploymentMemoryAmount1024 = 4,
+    DeploymentMemoryAmount2048 = 5,
+} DeploymentMemoryAmount;
 
-@property (copy) NSString *displayName, *hostname, *appName;
+@interface Deployment : NSManagedObject
+
+@property (strong) Target *target;
+@property (strong) App *app;
+@property (copy) NSString *displayName, *appName;
+@property (assign) NSInteger memory, instances;
+
++ (NSFetchRequest *)fetchRequest;
++ (Deployment *)deploymentInsertedIntoManagedObjectContext:(NSManagedObjectContext *)context;
 
 @end
 

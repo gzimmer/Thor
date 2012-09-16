@@ -5,6 +5,8 @@
 #import "AppItemsDataSource.h"
 #import "BreadcrumbController.h"
 #import "Sequence.h"
+#import "TargetController.h"
+#import "AppController.h"
 
 NSString *ToolbarTargetsItemIdentifier = @"ToolbarTargetsItemIdentifier";
 NSString *ToolbarAppsItemIdentifier = @"ToolbarAppsItemIdentifier";
@@ -56,10 +58,18 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
         toolbar.selectedItemIdentifier = ToolbarAppsItemIdentifier;
         
         ItemsController *targets = [[ItemsController alloc] initWithTitle:@"Clouds"];
-        targets.dataSource = [[TargetItemsDataSource alloc] init];
+        targets.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^ (ItemsController *itemsController, id item) {
+            TargetController *targetController = [[TargetController alloc] init];
+            targetController.target = (Target *)item;
+            [itemsController.breadcrumbController pushViewController:targetController animated:YES];
+        }];
         
         ItemsController *apps = [[ItemsController alloc] initWithTitle:@"Apps"];
-        apps.dataSource = [[AppItemsDataSource alloc] init];
+        apps.dataSource = [[AppItemsDataSource alloc] initWithSelectionAction:^ (ItemsController *itemsController, id item) {
+            AppController *appController = [[AppController alloc] init];
+            appController.app = (App *)item;
+            [itemsController.breadcrumbController pushViewController:appController animated:YES];
+        }];
         
         self.appsController = [[BreadcrumbController alloc] initWithRootViewController:apps];
         self.targetsController = [[BreadcrumbController alloc] initWithRootViewController:targets];
@@ -108,7 +118,7 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
 }
 
 - (NSArray *)toolbarDefaultItemIdentifiers:(NSToolbar*)toolbar {
-    return [NSArray arrayWithObjects:ToolbarAppsItemIdentifier, ToolbarTargetsItemIdentifier, ToolbarServicesItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier, nil];
+    return @[ToolbarAppsItemIdentifier, ToolbarTargetsItemIdentifier, ToolbarServicesItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier];
 }
 
 - (NSArray *)toolbarAllowedItemIdentifiers:(NSToolbar*)leToolbar {
@@ -116,7 +126,7 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
 }
 
 - (NSArray *)toolbarSelectableItemIdentifiers:(NSToolbar *)toolbar {
-    return [NSArray arrayWithObjects:ToolbarAppsItemIdentifier, ToolbarTargetsItemIdentifier, ToolbarServicesItemIdentifier, nil];
+    return @[ToolbarAppsItemIdentifier, ToolbarTargetsItemIdentifier, ToolbarServicesItemIdentifier];
 }
 
 - (void)itemClicked:(NSToolbarItem *)item {
@@ -132,6 +142,9 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
     _activeController = value;
     if (self.view.subviews.count) 
         [[self.view.subviews objectAtIndex:0] removeFromSuperview];
+    
+    if ([value respondsToSelector:@selector(viewWillAppear)])
+        [(id)value viewWillAppear];
     
     [self.view addSubview:value.view];
 }
