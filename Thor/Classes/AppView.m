@@ -1,6 +1,17 @@
 #import "AppView.h"
 #import "BoxGroupView.h"
 
+@implementation AppView : NSView
+
+@synthesize drawerBar, appContentView;
+
+- (void)layout {
+    self.drawerBar.frame = self.bounds;
+    [super layout];
+}
+
+@end
+
 @interface AppSettingsView : NSView
 
 @end
@@ -13,7 +24,7 @@
 
 @end
 
-@implementation AppView
+@implementation AppContentView
 
 @synthesize scrollView, deploymentsGrid, deploymentsBox, settingsBox, settingsView;
 

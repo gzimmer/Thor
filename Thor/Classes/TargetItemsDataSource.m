@@ -2,16 +2,32 @@
 #import "TargetPropertiesController.h"
 #import "TargetController.h"
 #import "CollectionItemView.h"
+#import "Sequence.h"
 
 static NSNib *nib = nil;
 
+@interface TargetItemsDataSource ()
+
+@property (nonatomic, copy) void (^action)(ItemsController *, id);
+
+@end
+
 @implementation TargetItemsDataSource
+
+@synthesize action;
 
 + (void)initialize {
     nib = [[NSNib alloc] initWithNibNamed:@"TargetCollectionItemView" bundle:nil];
 }
 
-- (NSArray *)getItems:(NSError **)error {
+- (id)initWithSelectionAction:(void (^)(id, ItemsController *))lAction {
+    if (self = [super init]) {
+        self.action = lAction;
+    }
+    return self;
+}
+
+- (NSArray *)itemsForItemsController:(ItemsController *)itemsController error:(NSError **)error {
     NSArray *result = [[ThorBackend shared] getConfiguredTargets:error];
     
     return result;
@@ -20,20 +36,13 @@ static NSNib *nib = nil;
 //    return [[[[[[[NSArray array] arrayByAddingObjectsFromArray:result] arrayByAddingObjectsFromArray:result] arrayByAddingObjectsFromArray:result] arrayByAddingObjectsFromArray:result] arrayByAddingObjectsFromArray:result] arrayByAddingObjectsFromArray:result];
 }
 
-- (NSViewController *)getPropertiesControllerForNewItem {
+- (NSViewController *)newItemPropertiesControllerForItemsController:(ItemsController *)itemsController {
     TargetPropertiesController *targetPropertiesController = [[TargetPropertiesController alloc] init];
     targetPropertiesController.target = [Target targetInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
     return targetPropertiesController;
 }
 
-- (NSViewController *)getControllerForItem:(id)item {
-    TargetController *targetController = [[TargetController alloc] init];
-    targetController.target = (Target *)item;
-    return targetController;
-}
-
-
-- (NSCollectionViewItem *)itemsController:(ItemsController *)itemsController getCollectionViewItemForItem:(id)item collectionView:(NSCollectionView *)collectionView  {
+- (NSCollectionViewItem *)itemsController:(ItemsController *)itemsController collectionViewItemForCollectionView:(NSCollectionView *)collectionView item:(id)item  {
     NSArray *topLevelObjects;
     [nib instantiateNibWithOwner:collectionView topLevelObjects:&topLevelObjects];
     
@@ -42,10 +51,10 @@ static NSNib *nib = nil;
     }] objectAtIndex:0];
     
     CollectionItemViewButton *button = [view.subviews objectAtIndex:0];
-    button.label = ((App *)item).displayName;
+    [button bind:@"label" toObject:item withKeyPath:@"displayName" options:nil];
     
     [button addCommand:[RACCommand commandWithCanExecute:nil execute:^ void (id v) {
-        [itemsController.breadcrumbController pushViewController:[self getControllerForItem:item] animated:YES];
+        action(itemsController, item);
     }]];
     
     return [[topLevelObjects filter:^ BOOL (id o) { 

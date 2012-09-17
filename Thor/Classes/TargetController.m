@@ -3,6 +3,7 @@
 #import "SheetWindow.h"
 #import "NSObject+AssociateDisposable.h"
 #import "DeploymentController.h"
+#import "GridView.h"
 
 @interface TargetController ()
 
@@ -17,21 +18,14 @@ static NSArray *appColumns = nil;
 @implementation TargetController
 
 + (void)initialize {
-    appColumns = [NSArray arrayWithObjects:@"Name", @"URI", @"Instances", @"Memory", @"Disk", nil];
+    appColumns = @[@"Name", @"URI", @"Instances", @"Memory", @"Disk"];
 }
 
 @synthesize target = _target, targetView, breadcrumbController, title, apps, service, targetPropertiesController;
 
 - (void)setTarget:(Target *)value {
     _target = value;
-    
-    CloudInfo *info = [CloudInfo new];
-    
-    info.hostname = value.hostname;
-    info.email = value.email;
-    info.password = value.password;
-    
-    self.service = [[FoundryService alloc] initWithCloudInfo:info];
+    self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:value]];
 }
 
 - (id<BreadcrumbItem>)breadcrumbItem {
@@ -45,7 +39,7 @@ static NSArray *appColumns = nil;
     return self;
 }
 
-- (void)awakeFromNib {
+- (void)viewWillAppear {
     self.associatedDisposable = [[service getApps] subscribeNext:^(id x) {
         self.apps = x;
         [targetView.deploymentsGrid reloadData];
@@ -67,35 +61,34 @@ static NSArray *appColumns = nil;
     return apps.count;
 }
 
-- (NSString *)gridView:(GridView *)gridView titleForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
+- (NSView *)gridView:(GridView *)gridView viewForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
     FoundryApp *app = [apps objectAtIndex:row];
+    
+    NSString *labelTitle;
     
     switch (columnIndex) {
         case 0:
-            return app.name;
+            labelTitle = app.name;
         case 1:
-            return [app.uris objectAtIndex:0];
+            labelTitle = [app.uris objectAtIndex:0];
         case 2:
-            return [NSString stringWithFormat:@"%d", app.instances];
+            labelTitle = [NSString stringWithFormat:@"%ld", app.instances];
         case 3:
-            return [NSString stringWithFormat:@"%d", app.memory];
+            labelTitle = [NSString stringWithFormat:@"%ld", app.memory];
         case 4:
-            return [NSString stringWithFormat:@"%d", app.disk];
+            labelTitle = [NSString stringWithFormat:@"%ld", app.disk];
     }
     
-    BOOL columnIndexIsValid = NO;
-    assert(columnIndexIsValid);
-    return nil;
+    return [GridLabel labelWithTitle:title];
 }
 
 - (void)gridView:(GridView *)gridView didSelectRowAtIndex:(NSUInteger)row {
     FoundryApp *app = [apps objectAtIndex:row];
+    Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
+    deployment.appName = app.name;
+    deployment.target = self.target;
     
-    DeploymentInfo *deploymentInfo = [DeploymentInfo new];
-    deploymentInfo.appName = app.name;
-    deploymentInfo.target = service.cloudInfo;
-    
-    DeploymentController *deploymentController = [[DeploymentController alloc] initWithDeploymentInfo:deploymentInfo];
+    DeploymentController *deploymentController = [[DeploymentController alloc] initWithDeployment:deployment];
     [self.breadcrumbController pushViewController:deploymentController animated:YES];
 }
 
@@ -104,16 +97,25 @@ static NSArray *appColumns = nil;
     self.targetPropertiesController.editing = YES;
     self.targetPropertiesController.target = self.target;
     
-    NSWindow *window = [[SheetWindow alloc] initWithContentRect:(NSRect){ .origin = NSZeroPoint, .size = self.targetPropertiesController.view.intrinsicContentSize } styleMask:NSTitledWindowMask backing:NSBackingStoreBuffered defer:NO];
-    
-    window.contentView = targetPropertiesController.view;
-    
+    NSWindow *window = [SheetWindow sheetWindowWithView:targetPropertiesController.view];
     [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:NULL];
 }
 
 - (void)sheetDidEnd:(NSWindow *)sheet returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
     self.targetPropertiesController = nil;
     [sheet orderOut:self];
+}
+
+- (void)deleteClicked:(id)sender {
+    [[ThorBackend sharedContext] deleteObject:self.target];
+    NSError *error;
+    
+    if (![[ThorBackend sharedContext] save:&error]) {
+        [NSApp presentError:error];
+        return;
+    }
+    
+    [self.breadcrumbController popViewControllerAnimated:YES];
 }
 
 @end

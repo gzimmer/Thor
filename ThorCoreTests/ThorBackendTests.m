@@ -18,11 +18,9 @@
 @implementation ThorBackendTests (Fixtures)
 
 - (NSArray *)createApps {
-    return [NSArray arrayWithObjects:
+    return @[[self createApp],
             [self createApp],
-            [self createApp],
-            [self createApp],
-            nil];
+            [self createApp]];
 }
 
 - (App *)createApp {
@@ -38,11 +36,9 @@
 }
 
 - (NSArray *)createTargets {
-    return [NSArray arrayWithObjects:
+    return @[[self createTarget],
             [self createTarget],
-            [self createTarget],
-            [self createTarget],
-            nil];
+            [self createTarget]];
 }
 
 - (Target *)createTarget {
@@ -143,49 +139,6 @@
     
     [self assertError:error hasDomain:ThorBackendErrorDomain andCode:AppLocalRootInvalid];
 }
-
-//- (void)testCreateConfiguredAppThrowsExceptionIfAppDefaultMemoryIsTooLow {
-//    App *app0 = [self.fixtures createApp];
-//    app0.defaultMemory = 0;
-//    [self.backend createConfiguredApp:app0];
-//    
-//    NSError *error = nil;
-//    [self.backend createConfiguredApp:app0 error:&error];
-//    
-//    [self.assertions assertError:error hasDomain:ThorErrorDomain andCode:AppMemoryOutOfRange];
-//}
-//- (void)testCreateConfiguredAppThrowsExceptionIfAppDefaultMemoryIsTooHigh {
-//    App *app0 = [self.fixtures createApp];
-//    app0.defaultMemory = 1024 * 1024 * 1024;
-//    [self.backend createConfiguredApp:app0];
-//    
-//    NSError *error = nil;
-//    [self.backend createConfiguredApp:app0 error:&error];
-//    
-//    [self.assertions assertError:error hasDomain:ThorErrorDomain andCode:AppMemoryOutOfRange];
-//}
-//
-//- (void)testCreateConfiguredAppThrowsExceptionIfAppDefaultInstancesIsTooLow {
-//    App *app0 = [self.fixtures createApp];
-//    app0.defaultInstances = 0;
-//    [self.backend createConfiguredApp:app0];
-//    
-//    NSError *error = nil;
-//    [self.backend createConfiguredApp:app0 error:&error];
-//    
-//    [self.assertions assertError:error hasDomain:ThorErrorDomain andCode:AppInstancesOutOfRange];
-//}
-//
-//- (void)testCreateConfiguredAppThrowsExceptionIfAppDefaultInstancesIsTooHigh {
-//    App *app0 = [self.fixtures createApp];
-//    app0.defaultInstances = 1024;
-//    [self.backend createConfiguredApp:app0];
-//    
-//    NSError *error = nil;
-//    [self.backend createConfiguredApp:app0 error:&error];
-//    
-//    [self.assertions assertError:error hasDomain:ThorErrorDomain andCode:AppInstancesOutOfRange];
-//}
 //
 //- (void)testUpdateConfiguredAppUpdatesLocalConfiguration {
 //}

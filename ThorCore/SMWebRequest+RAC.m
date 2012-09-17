@@ -62,6 +62,13 @@
     [super dealloc];
 }
 
+- (NSURLRequest *)webRequest:(SMWebRequest *)webRequest willSendRequest:(NSURLRequest *)newRequest redirectResponse:(NSURLResponse *)redirectResponse {
+    if (redirectResponse)
+        return nil;
+    else
+        return newRequest;
+}
+
 - (id)webRequest:(SMWebRequest *)webRequest resultObjectForData:(NSData *)data context:(id)context {
     return parser ? parser(data) : data;
 }
@@ -69,6 +76,7 @@
 - (void)webRequest:(SMWebRequest *)webRequest didCompleteWithResult:(id)result context:(id)context {
     [self cancel];
     [subscriber sendNext:result];
+    [subscriber sendCompleted];
 }
 
 - (void)webRequest:(SMWebRequest *)webRequest didFailWithError:(NSError *)error context:(id)context {

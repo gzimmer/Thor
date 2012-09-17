@@ -1,11 +1,7 @@
 #import "DeploymentController.h"
 #import "NSObject+AssociateDisposable.h"
-
-@implementation DeploymentInfo
-
-@synthesize appName, target;
-
-@end
+#import "RACSubscribable+ShowLoadingView.h"
+#import "GridView.h"
 
 @interface DeploymentController ()
 
@@ -17,17 +13,17 @@ static NSArray *instanceColumns = nil;
 
 @implementation DeploymentController
 
-@synthesize service, deploymentInfo, app, title, deploymentView, breadcrumbController, instanceStats;
+@synthesize service, deployment, app, title, deploymentView, breadcrumbController, instanceStats;
 
 + (void)initialize {
-    instanceColumns = [NSArray arrayWithObjects:@"ID", @"Host name", @"CPU", @"Memory", @"Disk", @"Uptime", nil];
+    instanceColumns = @[@"ID", @"Host name", @"CPU", @"Memory", @"Disk", @"Uptime"];
 }
 
-- (id)initWithDeploymentInfo:(DeploymentInfo *)leDeploymentInfo {
+- (id)initWithDeployment:(Deployment *)leDeployment {
     if (self = [super initWithNibName:@"DeploymentView" bundle:[NSBundle mainBundle]]) {
-        self.title = leDeploymentInfo.appName;
-        self.deploymentInfo = leDeploymentInfo;
-        self.service = [[FoundryService alloc] initWithCloudInfo:deploymentInfo.target];
+        self.title = leDeployment.appName;
+        self.deployment = leDeployment;
+        self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
     }
     return self;
 }
@@ -35,7 +31,13 @@ static NSArray *instanceColumns = nil;
 - (void)awakeFromNib {
     NSError *error = nil;
     
-    self.associatedDisposable = [[RACSubscribable combineLatest:[NSArray arrayWithObjects:[service getStatsForAppWithName:deploymentInfo.appName], [service getAppWithName:deploymentInfo.appName], nil] reduce:^ id (id x) { return x; }] subscribeNext:^ (id x) {
+    NSArray *subscribables = @[
+        [service getStatsForAppWithName:deployment.appName],
+        [service getAppWithName:deployment.appName]];
+    
+    RACSubscribable *call = [[RACSubscribable combineLatest:subscribables] showLoadingViewInView:self.view];
+    
+    self.associatedDisposable = [call subscribeNext:^ (id x) {
         RACTuple *tuple = (RACTuple *)x;
         self.instanceStats = tuple.first;
         self.app = tuple.second;
@@ -62,31 +64,49 @@ static NSArray *instanceColumns = nil;
     return instanceStats.count;
 }
 
-- (NSString *)gridView:(GridView *)gridView titleForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
+- (NSView *)gridView:(GridView *)gridView viewForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
     FoundryAppInstanceStats *stats = [instanceStats objectAtIndex:row];
+    
+    NSString *labelTitle;
     
     switch (columnIndex) {
         case 0:
-            return stats.ID;
+            labelTitle = stats.ID;
         case 1:
-            return stats.host;
+            labelTitle = stats.host;
         case 2:
-            return [NSString stringWithFormat:@"%f", stats.cpu];
+            labelTitle = [NSString stringWithFormat:@"%f", stats.cpu];
         case 3:
-            return [NSString stringWithFormat:@"%f", stats.memory];
+            labelTitle = [NSString stringWithFormat:@"%f", stats.memory];
         case 4:
-            return [NSString stringWithFormat:@"%f", stats.disk];
+            labelTitle = [NSString stringWithFormat:@"%ld", stats.disk];
         case 5:
-            return [NSString stringWithFormat:@"%f", stats.uptime];
+            labelTitle = [NSString stringWithFormat:@"%f", stats.uptime];
     }
     
-    BOOL columnIndexIsValid = NO;
-    assert(columnIndexIsValid);
-    return nil;
+    return [GridLabel labelWithTitle:title];
 }
 
 - (void)gridView:(GridView *)gridView didSelectRowAtIndex:(NSUInteger)row {
     NSLog(@"Clicked at index %lu", row);
+}
+
+- (IBAction)deleteClicked:(id)sender {
+    self.associatedDisposable = [[service deleteAppWithName:deployment.appName] subscribeError:^(NSError *error) {
+        [NSApp presentError:error];
+    } completed:^{
+        deployment.target = nil;
+        
+        [[ThorBackend sharedContext] deleteObject:deployment];
+        NSError *error;
+        
+        if (![[ThorBackend sharedContext] save:&error]) {
+            [NSApp presentError:error];
+            return;
+        }
+        
+        [self.breadcrumbController popViewControllerAnimated:YES];
+    }];
 }
 
 @end
