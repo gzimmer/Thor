@@ -3,7 +3,7 @@
 #import "SheetWindow.h"
 #import "NSObject+AssociateDisposable.h"
 #import "DeploymentController.h"
-#import "GridView.h"
+#import "AppCell.h"
 
 @interface TargetController ()
 
@@ -13,13 +13,7 @@
 
 @end
 
-static NSArray *appColumns = nil;
-
 @implementation TargetController
-
-+ (void)initialize {
-    appColumns = @[@"Name", @"URI", @"Instances", @"Memory", @"Disk"];
-}
 
 @synthesize target = _target, targetView, breadcrumbController, title, apps, service, targetPropertiesController;
 
@@ -42,53 +36,25 @@ static NSArray *appColumns = nil;
 - (void)viewWillAppear {
     self.associatedDisposable = [[service getApps] subscribeNext:^(id x) {
         self.apps = x;
-        [targetView.deploymentsGrid reloadData];
+        [targetView.deploymentsList reloadData];
         targetView.needsLayout = YES;
     } error:^(NSError *error) {
         [NSApp presentError:error];
     }];
 }
 
-- (NSUInteger)numberOfColumnsForGridView:(GridView *)gridView {
-    return appColumns.count;
-}
-
-- (NSString *)gridView:(GridView *)gridView titleForColumn:(NSUInteger)columnIndex {
-    return [appColumns objectAtIndex:columnIndex];
-}
-
-- (NSUInteger)numberOfRowsForGridView:(GridView *)gridView {
+- (NSUInteger)numberOfRowsForListView:(ListView *)listView {
     return apps.count;
 }
 
-- (NSView *)gridView:(GridView *)gridView viewForRow:(NSUInteger)row column:(NSUInteger)columnIndex {
-    FoundryApp *app = [apps objectAtIndex:row];
-    
-    NSString *labelTitle;
-    
-    switch (columnIndex) {
-        case 0:
-            labelTitle = app.name;
-            break;
-        case 1:
-            labelTitle = app.uris.count ? [app.uris objectAtIndex:0] : @"";
-            break;
-        case 2:
-            labelTitle = [NSString stringWithFormat:@"%ld", app.instances];
-            break;
-        case 3:
-            labelTitle = [NSString stringWithFormat:@"%ld", app.memory];
-            break;
-        case 4:
-            labelTitle = [NSString stringWithFormat:@"%ld", app.disk];
-            break;
-    }
-    
-    return [GridLabel labelWithTitle:labelTitle];
+- (NSView *)listView:(ListView *)listView cellForRow:(NSUInteger)row {
+    AppCell *cell = [[AppCell alloc] initWithFrame:NSZeroRect];
+    cell.app = apps[row];
+    return cell;
 }
 
-- (void)gridView:(GridView *)gridView didSelectRowAtIndex:(NSUInteger)row {
-    FoundryApp *app = [apps objectAtIndex:row];
+- (void)listView:(ListView *)listView didSelectRowAtIndex:(NSUInteger)row {
+    FoundryApp *app = apps[row];
     Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
     deployment.appName = app.name;
     deployment.target = self.target;
