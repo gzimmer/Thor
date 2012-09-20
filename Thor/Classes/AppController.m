@@ -6,6 +6,7 @@
 #import "DeploymentPropertiesController.h"
 #import "ThorCore.h"
 #import "DeploymentCell.h"
+#import "NoResultsListViewDataSource.h"
 
 static NSInteger AppPropertiesControllerContext;
 static NSInteger DeploymentPropertiesControllerContext;
@@ -16,12 +17,13 @@ static NSInteger DeploymentPropertiesControllerContext;
 @property (nonatomic, strong) DeploymentPropertiesController *deploymentPropertiesController;
 @property (nonatomic, strong) ItemsController *targetsController;
 @property (nonatomic, strong) TargetItemsDataSource *targetItemsDataSource;
+@property (nonatomic, strong) id<ListViewDataSource> deploymentsDataSource;
 
 @end
 
 @implementation AppController
 
-@synthesize app, deployments, appPropertiesController, deploymentPropertiesController, breadcrumbController, title, appView, targetsController, targetItemsDataSource;
+@synthesize app, deployments, appPropertiesController, deploymentPropertiesController, breadcrumbController, title, appView, targetsController, targetItemsDataSource, deploymentsDataSource;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppView" bundle:[NSBundle mainBundle]]) {
@@ -42,6 +44,11 @@ static NSInteger DeploymentPropertiesControllerContext;
     targetsController.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id item) {
         [self displayDeploymentDialogWithTarget:(Target *)item];
     }];
+    
+    NoResultsListViewDataSource *noResultsSource = [[NoResultsListViewDataSource alloc] init];
+    noResultsSource.dataSource = self;
+    self.deploymentsDataSource = noResultsSource;
+    self.appView.appContentView.deploymentsList.dataSource = deploymentsDataSource;
     self.appView.drawerBar.drawerView = targetsController.view;
 }
 
@@ -59,7 +66,7 @@ static NSInteger DeploymentPropertiesControllerContext;
 }
 
 - (NSUInteger)numberOfRowsForListView:(ListView *)listView {
-    return deployments.count;
+    return 0;//deployments.count;
 }
 
 - (ListCell *)listView:(ListView *)listView cellForRow:(NSUInteger)row {
