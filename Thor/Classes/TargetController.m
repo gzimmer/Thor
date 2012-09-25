@@ -5,19 +5,20 @@
 #import "DeploymentController.h"
 #import "AppCell.h"
 #import "NoResultsListViewDataSource.h"
+#import "RACSubscribable+ShowLoadingView.h"
 
 @interface TargetController ()
 
 @property (nonatomic, strong) NSArray *apps;
 @property (nonatomic, strong) FoundryService *service;
 @property (nonatomic, strong) TargetPropertiesController *targetPropertiesController;
-@property (nonatomic, strong) NoResultsListViewDataSource *dataSource;
+@property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> listSource;
 
 @end
 
 @implementation TargetController
 
-@synthesize target = _target, targetView, breadcrumbController, title, apps, service, targetPropertiesController, dataSource;
+@synthesize target = _target, targetView, breadcrumbController, title, apps, service, targetPropertiesController, listSource;
 
 - (void)setTarget:(Target *)value {
     _target = value;
@@ -36,13 +37,15 @@
 }
 
 - (void)awakeFromNib {
-    self.dataSource = [[NoResultsListViewDataSource alloc] init];
-    dataSource.dataSource = self;
-    self.targetView.deploymentsList.dataSource = dataSource;
+    NoResultsListViewSource *source = [[NoResultsListViewSource alloc] init];
+    source.source = self;
+    self.listSource = source;
+    self.targetView.deploymentsList.dataSource = listSource;
+    self.targetView.deploymentsList.delegate = listSource;
 }
 
 - (void)viewWillAppear {
-    self.associatedDisposable = [[service getApps] subscribeNext:^(id x) {
+    self.associatedDisposable = [[[service getApps] showLoadingViewInView:self.view] subscribeNext:^(id x) {
         self.apps = x;
         [targetView.deploymentsList reloadData];
         targetView.needsLayout = YES;
