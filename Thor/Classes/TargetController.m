@@ -8,6 +8,8 @@
 #import "RACSubscribable+ShowLoadingView.h"
 #import "Sequence.h"
 #import "AppItemsDataSource.h"
+#import "DeploymentPropertiesController.h"
+#import "AddDeploymentListViewSource.h"
 
 @interface TargetController ()
 
@@ -39,9 +41,12 @@
 }
 
 - (void)awakeFromNib {
-    NoResultsListViewSource *source = [[NoResultsListViewSource alloc] init];
-    source.source = self;
-    self.listSource = source;
+    NoResultsListViewSource *noResultsSource = [[NoResultsListViewSource alloc] init];
+    noResultsSource.source = self;
+    AddDeploymentListViewSource *addDeploymentSource = [[AddDeploymentListViewSource alloc] init];
+    addDeploymentSource.source = noResultsSource;
+    addDeploymentSource.action = ^ { [self createNewDeployment]; };
+    self.listSource = addDeploymentSource;
     self.targetView.deploymentsList.dataSource = listSource;
     self.targetView.deploymentsList.delegate = listSource;
 }
@@ -66,12 +71,37 @@
     return [deployments any:^ BOOL (id d) { return ((Deployment *)d).appName == app.name; }];
 }
 
-- (void)createDeploymentForApp:(FoundryApp *)app {    
-    __block WizardController *wizard;
+- (void)showWizardWithController:(NSViewController<WizardControllerAware> *)controller wizardController:(WizardController **)outWizardController sheetWindow:(NSWindow **)outWindow {
+    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:controller];
+    *outWizardController = wizardController;
+    NSWindow *wizardWindow = [SheetWindow sheetWindowWithView:wizardController.view];
+    *outWindow = wizardWindow;
+    [wizardController viewWillAppear];
+    [NSApp beginSheet:wizardWindow modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:nil];
+}
+
+- (ItemsController *)appItemsControllerWithSelectionAction:(void (^)(ItemsController *, id))selectionAction {
+    ItemsController *appsController = [[ItemsController alloc] initWithTitle:@"Apps"];
+    appsController.dataSource = [[AppItemsDataSource alloc] initWithSelectionAction:selectionAction];
+    return appsController;
+}
+
+- (void)createNewDeployment {
+    __block WizardController *wizardController;
+    
+    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^ (ItemsController *itemsController, id app){
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:self.target app:app];
+        [wizardController pushViewController:deploymentController animated:YES];
+    }];
+    
+    NSWindow *wizardWindow;
+    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
+}
+
+- (void)createDeploymentForApp:(FoundryApp *)app {
     __block NSWindow *wizardWindow;
     
-    ItemsController *appsController = [[ItemsController alloc] initWithTitle:@"Apps"];
-    appsController.dataSource = [[AppItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id item) {
+    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^(ItemsController *itemsController, id item) {
         Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
         deployment.appName = app.name;
         deployment.app = (App *)item;
@@ -86,10 +116,8 @@
         [NSApp endSheet:wizardWindow returnCode:NSOKButton];
     }];
     
-    wizard = [[WizardController alloc] initWithRootViewController:appsController];
-    wizardWindow = [SheetWindow sheetWindowWithView:wizard.view];
-    [wizard viewWillAppear];
-    [NSApp beginSheet:wizardWindow modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:nil];
+    WizardController *wizardController;
+    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
 }
 
 - (NSView *)listView:(ListView *)listView cellForRow:(NSUInteger)row {
