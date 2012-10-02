@@ -28,6 +28,17 @@
 
 @implementation DeploymentPropertiesController
 
+@synthesize title;
+
++ (DeploymentPropertiesController *)newDeploymentControllerWithTarget:(Target *)target app:(App *)app {
+    DeploymentPropertiesController *result = [[DeploymentPropertiesController alloc] init];
+    result.deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
+    result.deployment.app = app;
+    result.deployment.appName = [((NSURL *)[NSURL fileURLWithPath:app.localRoot]).pathComponents lastObject];
+    result.deployment.target = target;
+    return result;
+}
+
 @synthesize objectController, deployment, deploymentPropertiesView, apps, wizardController;
 
 - (id)init {

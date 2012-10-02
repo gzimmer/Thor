@@ -7,62 +7,8 @@
 #import "ThorCore.h"
 #import "DeploymentCell.h"
 #import "NoResultsListViewDataSource.h"
-#import "NSFont+LineHeight.h"
 #import "WizardController.h"
-
-@interface AddDeploymentCell : ListCell
-
-@end
-
-@implementation AddDeploymentCell
-
-- (void)drawRect:(NSRect)dirtyRect {
-    [super drawRect:dirtyRect];
-    NSMutableParagraphStyle *style = [NSMutableParagraphStyle new];
-    style.alignment = NSCenterTextAlignment;
-    NSFont *font = [NSFont boldSystemFontOfSize:12];
-    [@"New deployment…" drawInRect:NSMakeRect(0, (self.bounds.size.height - font.lineHeight) / 2 + 2, self.bounds.size.width, font.lineHeight) withAttributes:@{
-NSForegroundColorAttributeName : [NSColor colorWithCalibratedWhite:.2 alpha:1],
-         NSFontAttributeName : font,
-NSParagraphStyleAttributeName : style
-     }];
-}
-
-@end
-
-@interface AddDeploymentListViewSource : NSObject <ListViewDataSource, ListViewDelegate>
-
-@property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> source;
-@property (nonatomic, copy) void (^action)();
-
-@end
-
-@implementation AddDeploymentListViewSource
-
-@synthesize source, action;
-
-- (NSUInteger)numberOfRowsForListView:(ListView *)listView {
-    return [source numberOfRowsForListView:listView] + 1;
-}
-
-- (BOOL)rowInListView:(ListView *)listView isWrappedCell:(NSUInteger)row {
-    return row < [source numberOfRowsForListView:listView];
-}
-
-- (ListCell *)listView:(ListView *)listView cellForRow:(NSUInteger)row {
-    return [self rowInListView:listView isWrappedCell:row] ?
-        [source listView:listView cellForRow:row] :
-        [[AddDeploymentCell alloc] initWithFrame:NSZeroRect];
-}
-
-- (void)listView:(ListView *)listView didSelectRowAtIndex:(NSUInteger)row {
-    if ([self rowInListView:listView isWrappedCell:row])
-        [source listView:listView didSelectRowAtIndex:row];
-    else
-        action();
-}
-
-@end
+#import "AddDeploymentListViewSource.h"
 
 static NSInteger AppPropertiesControllerContext;
 static NSInteger DeploymentPropertiesControllerContext;
@@ -71,7 +17,6 @@ static NSInteger DeploymentPropertiesControllerContext;
 
 @property (nonatomic, strong) AppPropertiesController *appPropertiesController;
 @property (nonatomic, strong) DeploymentPropertiesController *deploymentPropertiesController;
-@property (nonatomic, strong) ItemsController *targetsController;
 @property (nonatomic, strong) TargetItemsDataSource *targetItemsDataSource;
 @property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> listSource;
 
@@ -79,7 +24,7 @@ static NSInteger DeploymentPropertiesControllerContext;
 
 @implementation AppController
 
-@synthesize app, deployments, appPropertiesController, deploymentPropertiesController, breadcrumbController, title, appView, targetsController, targetItemsDataSource, listSource;
+@synthesize app, deployments, appPropertiesController, deploymentPropertiesController, breadcrumbController, title, appView, targetItemsDataSource, listSource;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppView" bundle:[NSBundle mainBundle]]) {
@@ -96,11 +41,6 @@ static NSInteger DeploymentPropertiesControllerContext;
 }
 
 - (void)awakeFromNib {
-//    self.targetsController = [[ItemsController alloc] initWithTitle:@"Clouds"];
-//    targetsController.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id item) {
-//        [self displayDeploymentDialogWithTarget:(Target *)item];
-//    }];
-//    self.appView.drawerBar.drawerView = targetsController.view;
     
     NoResultsListViewSource *noResultsSource = [[NoResultsListViewSource alloc] init];
     noResultsSource.source = self;
@@ -165,16 +105,12 @@ static NSInteger DeploymentPropertiesControllerContext;
 - (void)displayDeploymentDialog {
     __block WizardController *wizard;
     
-    self.targetsController = [[ItemsController alloc] initWithTitle:@"Clouds"];
-    targetsController.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id item) {
-        DeploymentPropertiesController *wizardRoot = [[DeploymentPropertiesController alloc] init];
-        wizardRoot.deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-        wizardRoot.deployment.app = app;
-        wizardRoot.deployment.target = item;
-        [wizard pushViewController:wizardRoot animated:YES];
+    ItemsController *targetsController = [[ItemsController alloc] initWithTitle:@"Clouds"];
+    targetsController.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id target) {
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:target app:app];
+        [wizard pushViewController:deploymentController animated:YES];
     }];
 
-    
     wizard = [[WizardController alloc] initWithRootViewController:targetsController];
     NSWindow *window = [SheetWindow sheetWindowWithView:wizard.view];
     [wizard viewWillAppear];

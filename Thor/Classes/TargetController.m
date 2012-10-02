@@ -7,6 +7,9 @@
 #import "NoResultsListViewDataSource.h"
 #import "RACSubscribable+ShowLoadingView.h"
 #import "Sequence.h"
+#import "AppItemsDataSource.h"
+#import "DeploymentPropertiesController.h"
+#import "AddDeploymentListViewSource.h"
 
 @interface TargetController ()
 
@@ -38,14 +41,17 @@
 }
 
 - (void)awakeFromNib {
-    NoResultsListViewSource *source = [[NoResultsListViewSource alloc] init];
-    source.source = self;
-    self.listSource = source;
+    NoResultsListViewSource *noResultsSource = [[NoResultsListViewSource alloc] init];
+    noResultsSource.source = self;
+    AddDeploymentListViewSource *addDeploymentSource = [[AddDeploymentListViewSource alloc] init];
+    addDeploymentSource.source = noResultsSource;
+    addDeploymentSource.action = ^ { [self createNewDeployment]; };
+    self.listSource = addDeploymentSource;
     self.targetView.deploymentsList.dataSource = listSource;
     self.targetView.deploymentsList.delegate = listSource;
 }
 
-- (void)viewWillAppear {
+- (void)updateApps {
     self.associatedDisposable = [[[service getApps] showLoadingViewInView:self.view] subscribeNext:^(id x) {
         self.apps = x;
         [targetView.deploymentsList reloadData];
@@ -53,6 +59,10 @@
     } error:^(NSError *error) {
         [NSApp presentError:error];
     }];
+}
+
+- (void)viewWillAppear {
+    [self updateApps];
 }
 
 - (NSUInteger)numberOfRowsForListView:(ListView *)listView {
@@ -65,12 +75,63 @@
     return [deployments any:^ BOOL (id d) { return ((Deployment *)d).appName == app.name; }];
 }
 
+- (void)showWizardWithController:(NSViewController<WizardControllerAware> *)controller wizardController:(WizardController **)outWizardController sheetWindow:(NSWindow **)outWindow {
+    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:controller];
+    *outWizardController = wizardController;
+    NSWindow *wizardWindow = [SheetWindow sheetWindowWithView:wizardController.view];
+    *outWindow = wizardWindow;
+    [wizardController viewWillAppear];
+    [NSApp beginSheet:wizardWindow modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:nil];
+}
+
+- (ItemsController *)appItemsControllerWithSelectionAction:(void (^)(ItemsController *, id))selectionAction {
+    ItemsController *appsController = [[ItemsController alloc] initWithTitle:@"Apps"];
+    appsController.dataSource = [[AppItemsDataSource alloc] initWithSelectionAction:selectionAction];
+    return appsController;
+}
+
+- (void)createNewDeployment {
+    __block WizardController *wizardController;
+    
+    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^ (ItemsController *itemsController, id app){
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:self.target app:app];
+        [wizardController pushViewController:deploymentController animated:YES];
+    }];
+    
+    NSWindow *wizardWindow;
+    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
+}
+
+- (void)createDeploymentForApp:(FoundryApp *)app {
+    __block NSWindow *wizardWindow;
+    
+    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^(ItemsController *itemsController, id item) {
+        Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
+        deployment.appName = app.name;
+        deployment.app = (App *)item;
+        deployment.target = self.target;
+        
+        NSError *error;
+        
+        if (![[ThorBackend sharedContext] save:&error]) {
+            [NSApp presentError:error];
+        }
+        
+        [NSApp endSheet:wizardWindow returnCode:NSOKButton];
+    }];
+    
+    WizardController *wizardController;
+    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
+}
+
 - (NSView *)listView:(ListView *)listView cellForRow:(NSUInteger)row {
     AppCell *cell = [[AppCell alloc] initWithFrame:NSZeroRect];
     FoundryApp *app = apps[row];
     cell.app = app;
-    cell.button.title = @"+";
     cell.button.hidden = [self hasDeploymentForApp:app];
+    [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+        [self createDeploymentForApp:app];
+    }]];
     return cell;
 }
 
@@ -96,6 +157,7 @@
 - (void)sheetDidEnd:(NSWindow *)sheet returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
     self.targetPropertiesController = nil;
     [sheet orderOut:self];
+    [self updateApps];
 }
 
 - (void)deleteClicked:(id)sender {
