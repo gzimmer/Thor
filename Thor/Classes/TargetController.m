@@ -72,43 +72,47 @@
 - (BOOL)hasDeploymentForApp:(FoundryApp *)app {
     NSError *error;
     NSArray *deployments = [[ThorBackend shared] getDeploymentsForTarget:self.target error:&error];
-    return [deployments any:^ BOOL (id d) { return ((Deployment *)d).appName == app.name; }];
+    return [deployments any:^ BOOL (id d) { return [((Deployment *)d).appName isEqual:app.name]; }];
 }
 
-- (void)showWizardWithController:(NSViewController<WizardControllerAware> *)controller wizardController:(WizardController **)outWizardController sheetWindow:(NSWindow **)outWindow {
-    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:controller];
-    *outWizardController = wizardController;
-    NSWindow *wizardWindow = [SheetWindow sheetWindowWithView:wizardController.view];
-    *outWindow = wizardWindow;
-    [wizardController viewWillAppear];
-    [NSApp beginSheet:wizardWindow modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:nil];
-}
-
-- (ItemsController *)appItemsControllerWithSelectionAction:(void (^)(ItemsController *, id))selectionAction {
-    ItemsController *appsController = [[ItemsController alloc] initWithTitle:@"Apps"];
-    appsController.dataSource = [[AppItemsDataSource alloc] initWithSelectionAction:selectionAction];
+- (ItemsController *)createAppItemsController {
+    ItemsController *appsController = [[ItemsController alloc] init];
+    appsController.dataSource = [[AppItemsDataSource alloc] init];
     return appsController;
 }
 
 - (void)createNewDeployment {
     __block WizardController *wizardController;
     
-    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^ (ItemsController *itemsController, id app){
+    ItemsController *appsController = [self createAppItemsController];
+    
+    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
+        App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
         DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:self.target app:app];
         [wizardController pushViewController:deploymentController animated:YES];
-    }];
+    } rollbackBlock:nil];
     
-    NSWindow *wizardWindow;
-    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
+    wizardItemsController.title = @"Deploy app";
+    wizardItemsController.commitButtonTitle = @"Next";
+    
+    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
+    [wizardController presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
+        if (returnCode == NSOKButton)
+            [self updateApps];
+    }];
 }
 
-- (void)createDeploymentForApp:(FoundryApp *)app {
-    __block NSWindow *wizardWindow;
+- (void)createDeploymentForApp:(FoundryApp *)foundryApp {
+    __block WizardController *wizardController;
     
-    ItemsController *appsController = [self appItemsControllerWithSelectionAction:^(ItemsController *itemsController, id item) {
+    ItemsController *appsController = [self createAppItemsController];
+    
+    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
+        App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
+        
         Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-        deployment.appName = app.name;
-        deployment.app = (App *)item;
+        deployment.appName = foundryApp.name;
+        deployment.app = app;
         deployment.target = self.target;
         
         NSError *error;
@@ -117,11 +121,17 @@
             [NSApp presentError:error];
         }
         
-        [NSApp endSheet:wizardWindow returnCode:NSOKButton];
-    }];
+        [wizardController dismissWithReturnCode:NSOKButton];
+    } rollbackBlock:nil];
     
-    WizardController *wizardController;
-    [self showWizardWithController:appsController wizardController:&wizardController sheetWindow:&wizardWindow];
+    wizardItemsController.title = @"Associate deployment with app";
+    wizardItemsController.commitButtonTitle = @"Done";
+    
+    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
+    [wizardController presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
+        if (returnCode == NSOKButton)
+            [self updateApps];
+    }];
 }
 
 - (NSView *)listView:(ListView *)listView cellForRow:(NSUInteger)row {

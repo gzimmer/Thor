@@ -105,13 +105,20 @@ static NSInteger DeploymentPropertiesControllerContext;
 - (void)displayDeploymentDialog {
     __block WizardController *wizard;
     
-    ItemsController *targetsController = [[ItemsController alloc] initWithTitle:@"Clouds"];
-    targetsController.dataSource = [[TargetItemsDataSource alloc] initWithSelectionAction:^(ItemsController *itemsController, id target) {
+    ItemsController *targetsController = [[ItemsController alloc] init];
+    targetsController.dataSource = [[TargetItemsDataSource alloc] init];
+    
+    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
+        Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
+        
         DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:target app:app];
         [wizard pushViewController:deploymentController animated:YES];
-    }];
+    } rollbackBlock:nil];
+    
+    wizardItemsController.title = @"Deploy to cloud";
+    wizardItemsController.commitButtonTitle = @"Next";
 
-    wizard = [[WizardController alloc] initWithRootViewController:targetsController];
+    wizard = [[WizardController alloc] initWithRootViewController:wizardItemsController];
     NSWindow *window = [SheetWindow sheetWindowWithView:wizard.view];
     [wizard viewWillAppear];
     [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:&DeploymentPropertiesControllerContext];
