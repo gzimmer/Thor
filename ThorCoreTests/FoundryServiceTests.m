@@ -312,7 +312,6 @@ describe(@"createApp", ^ {
 });
 
 describe(@"deleteApp", ^ {
-    
     __block MockEndpoint *endpoint;
     __block FoundryService *service;
     
@@ -369,8 +368,6 @@ describe(@"postSlug", ^ {
         "this is some data in a file\r\n"
         "--BVANDERVEEN_WAS_HERE_AND_IT_WAS_PRETTY_RADICAL--\r\n";
         
-        
-        
         id expectedCalls = @[
         @{
             @"method" : @"PUT",
@@ -386,24 +383,24 @@ describe(@"postSlug", ^ {
     });
 });
 
-NSArray *root = @[NSTemporaryDirectory(), @"TestZipDir"];
-NSString *rootPath = [NSString pathWithComponents:root];
-NSURL *rootURL = [NSURL fileURLWithPath:rootPath];
+void (^ensureDirectoryForFile)(NSArray *, NSArray *) = ^ void (NSArray *rootPathComponents, NSArray *pathComponents) {
+    NSString *directory = [NSString pathWithComponents:[[rootPathComponents concat:pathComponents] take:rootPathComponents.count + pathComponents.count - 1]];
+    NSError *error = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error];
+    
+    if (error) {
+        NSLog(@"error: %@", [error localizedDescription]);
+        assert(NO);
+    }
+};
 
-NSSet *(^createFiles)(NSArray *) = ^ (NSArray *files) {
+NSSet *(^createFilesAtRoot)(NSArray *, NSArray *) = ^ (NSArray *files, NSArray *root) {
     NSSet *created = [NSSet set];
     for (NSArray *f in files) {
         NSArray *pathComponents = f[0];
         NSString *contents = f[1];
         
-        NSString *directory = [NSString pathWithComponents:[[root concat:pathComponents] take:root.count + pathComponents.count - 1]];
-        NSError *error = nil;
-        [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error];
-        
-        if (error) {
-            NSLog(@"error: %@", [error localizedDescription]);
-            assert(NO);
-        }
+        ensureDirectoryForFile(root, pathComponents);
         
         NSString *path = [NSString pathWithComponents:[root arrayByAddingObjectsFromArray:pathComponents]];
         
@@ -417,9 +414,9 @@ NSSet *(^createFiles)(NSArray *) = ^ (NSArray *files) {
     return created;
 };
 
-void (^removeCreatedFiles)() = ^ {
+void (^removeCreatedFiles)(NSString *) = ^ (NSString *path) {
     NSError *error = nil;
-    [[NSFileManager defaultManager] removeItemAtPath:rootPath error:&error];
+    [[NSFileManager defaultManager] removeItemAtPath:path error:&error];
 };
 
 describe(@"CreateSlugManifestFromPath", ^ {
@@ -435,16 +432,20 @@ describe(@"CreateSlugManifestFromPath", ^ {
         expect(filenames).to.contain(@"subdir2/subdir3/bar3");
     };
     
-    id (^filesInManifest)() = ^ id () {
+    id (^filesInManifest)(NSURL *) = ^ id (NSURL *rootURL) {
         return [CreateSlugManifestFromPath(rootURL) map:^id(id r) {
             return [r objectForKey:@"fn"];
         }];
     };
     
-    __block NSArray *intendedFiles;
+    __block NSSet *intendedFiles;
+    
+    NSArray *root = @[NSTemporaryDirectory(), @"ThorScratchDir"];
+    NSString *rootPath = [NSString pathWithComponents:root];
+    NSURL *rootURL = [NSURL fileURLWithPath:rootPath];
     
     beforeEach(^{
-        intendedFiles = createFiles(@[
+        intendedFiles = createFilesAtRoot(@[
                     @[ @[@"foo"], @"this is /foo" ],
                     @[ @[@"bar"], @"this is /bar" ],
                     @[ @[@"subdir1", @"foo1"], @"this is /subdir1/foo1" ],
@@ -453,26 +454,32 @@ describe(@"CreateSlugManifestFromPath", ^ {
                     @[ @[@"subdir2", @"bar2"], @"this is /subdir2/bar2" ],
                     @[ @[@"subdir2", @"subdir3", @"foo3"], @"this is /subdir2/subdir3/foo3" ],
                     @[ @[@"subdir2", @"subdir3", @"bar3"], @"this is /subdir2/subdir3/bar3" ],
-                    ]);
+                    ], root);
+        createFilesAtRoot(@[
+                          @[ @[ @".DS_Store" ], @"stuff things" ],
+                          @[ @[ @"subdir1", @".DS_Store" ], @"stuff things" ],
+                          @[ @[ @".git", @"index" ], @"things stuff" ],
+                          @[ @[ @".git", @"objects", @"abcdef" ], @"things stuff" ]
+                          ], root);
     });
     
     afterEach(^{
-        removeCreatedFiles();
+        removeCreatedFiles(rootPath);
     });
 
     it(@"should list files recursively", ^{
-        expectToBeIntendedFiles(filesInManifest());
+        expectToBeIntendedFiles(filesInManifest(rootURL));
     });
     
     it(@"should exclude .git directories", ^ {
-        createFiles(@[
+        createFilesAtRoot(@[
                     @[ @[@".git", @"index-n-stuff"], @"blah blah blah" ],
                     @[ @[@".git", @"objects"], @"tree or whatever" ],
                     @[ @[@".git", @"whateverelse"], @"wish I understood git more" ]
-                    ]);
+                    ], root);
         
         
-        expectToBeIntendedFiles(filesInManifest());
+        expectToBeIntendedFiles(filesInManifest(rootURL));
     });
     
     it(@"should provide file sizes", ^ {
@@ -544,8 +551,12 @@ NSSet *(^filesUnderRoot)(NSURL *) = ^ NSSet * (NSURL *root) {
 describe(@"CreateSlugFromManifest", ^{
     __block NSSet *createdFiles;
     
+    NSArray *root = @[NSTemporaryDirectory(), @"ThorScratchDir"];
+    NSString *rootPath = [NSString pathWithComponents:root];
+    NSURL *rootURL = [NSURL fileURLWithPath:rootPath];
+    
     beforeEach(^{
-        createdFiles = createFiles(@[
+        createdFiles = createFilesAtRoot(@[
                     @[ @[@"foo"], @"this is /foo" ],
                     @[ @[@"bar"], @"this is /bar" ],
                     @[ @[@"subdir1", @"foo1"], @"this is /subdir1/foo1" ],
@@ -554,7 +565,7 @@ describe(@"CreateSlugFromManifest", ^{
                     @[ @[@"subdir2", @"bar2"], @"this is /subdir2/bar2" ],
                     @[ @[@"subdir2", @"subdir3", @"foo3"], @"this is /subdir2/subdir3/foo3" ],
                     @[ @[@"subdir2", @"subdir3", @"bar3"], @"this is /subdir2/subdir3/bar3" ],
-                    ]);
+                    ], root);
     });
     
     afterEach(^{
@@ -576,71 +587,425 @@ describe(@"CreateSlugFromManifest", ^{
     });
 });
 
-describe(@"TestDeployment", ^{
-    it(@"should deploy a thing", ^{
-        
-        NSArray *repoPathComponents = @[ NSTemporaryDirectory(), @"paasIt" ];
-        NSString *repoPath = [NSString pathWithComponents:repoPathComponents];
-        
-        [[NSFileManager defaultManager] removeItemAtPath:repoPath error:nil];
-        NSURL *repoURL = [NSURL fileURLWithPath:repoPath];
-        
-        NSTask *task = [NSTask new];
-        task.launchPath = @"/usr/bin/git";
-        task.arguments = @[ @"clone", @"git://github.com/Adron/goldmind.git", repoPath ];
-        [task launch];
-        [task waitUntilExit];
-        
-        NSURL *nodeTestAppURL = [NSURL fileURLWithPath:[NSString pathWithComponents:repoPathComponents]];
-        
-        NSArray *manifest = CreateSlugManifestFromPath(nodeTestAppURL);
-        NSURL *slug = CreateSlugFromManifest(manifest, nodeTestAppURL);
-        
-        FoundryEndpoint *endpoint = [FoundryEndpoint new];
-        endpoint.email = @"b@bvanderveen.com";
-        endpoint.password = @"secret";
-        endpoint.hostname = @"api.bvanderveen.cloudfoundry.me";
-        
-        FoundryService *service = [[FoundryService alloc] initWithEndpoint:endpoint];
-        
-        FoundryApp *app = [FoundryApp new];
-        app.name = @"goldmind";
-        app.uris = @[ @"goldmind.bvanderveen.cloudfoundry.me" ];
-        app.instances = 1;
-        //app.state = FoundryAppStateStarted;
-        app.memory = 64;
-        //app.disk = 2048;
-        app.stagingFramework = @"node";
-        //app.stagingRuntime = [NSNull null];//@"node";
-        //app.services = @[];
-        
-        __block BOOL done = NO, err = NO;
-        int attempts = 0;
-        
-        [[service createApp:app] subscribeError:^ (NSError *error) {
-            NSLog(@"error: %@", [error localizedDescription]);
-            err = YES;
-        } completed:^{
-            [[service postSlug:slug manifest:manifest toAppWithName:@"goldmind"] subscribeError: ^ (NSError *error) {
-                NSLog(@"error: %@", [error localizedDescription]);
-                err = YES;
-            } completed:^{
-                done = YES;
-                NSError *error = nil;
-            }];
-        }];
-        
-        while (!done && !err && attempts++ < 1) {
-            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:5.0]];
-        }
-        
-        expect(err).to.beFalsy();
-        expect(done).to.beTruthy();
-        
+void (^createZipFile)(NSArray *, NSArray *, NSArray *) = ^ void (NSArray *basePathComponents, NSArray *outputFileComponents, NSArray *manifest) {
+    
+    ensureDirectoryForFile(outputFileComponents, nil);
+    
+    NSTask *task = [NSTask new];
+    task.launchPath = @"/usr/bin/zip";
+    task.currentDirectoryPath = [basePathComponents componentsJoinedByString:@"/"];
+    task.arguments = [@[[outputFileComponents componentsJoinedByString:@"/"]] concat:[manifest map:^id(id i) {
+        return [i componentsJoinedByString:@"/"];
+    }]];
+    
+    [task launch];
+    [task waitUntilExit];
+};
+
+describe(@"detect framework", ^{
+    
+    NSArray *root = @[NSTemporaryDirectory(), @"ThorScratchDir"];
+    NSString *rootPath = [NSString pathWithComponents:root];
+    NSURL *rootURL = [NSURL fileURLWithPath:rootPath];
+    
+    NSArray *zipScratchRoot = @[NSTemporaryDirectory(), @"ThorZipScratchDir"];
+    NSString *zipScratchRootPath = [NSString pathWithComponents:zipScratchRoot];
+    NSURL *zipScratchRootURL = [NSURL fileURLWithPath:zipScratchRootPath];
+    
+    __block NSString *archivePathToCleanUp;
+    __block NSURL *archiveRootURL;
+    
+    void (^cleanup)() = ^ {
         NSError *error;
-        [[NSFileManager defaultManager] removeItemAtPath:repoPath error:&error];
-        [[NSFileManager defaultManager] removeItemAtPath:slug.path error:&error];
+        [[NSFileManager defaultManager] removeItemAtPath:rootPath error:&error];
+        [[NSFileManager defaultManager] removeItemAtPath:zipScratchRootPath error:&error];
+        [[NSFileManager defaultManager] removeItemAtPath:archivePathToCleanUp error:&error];
+    };
+    
+    void (^createFiles)(NSArray *) = ^ (NSArray *manifest) {
+        createFilesAtRoot(manifest, root);
+    };
+    
+    afterEach(^{
+        cleanup();
+    });
+    
+    it(@"should detect rails apps", ^{
+        createFiles(@[
+                    @[ @[@"config", @"environment.rb" ], @"use rails or whatever" ],
+                    ]);
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"rails");
+    });
+    
+    it(@"should detect rack apps", ^{
+        createFiles(@[
+                    @[ @[ @"config.ru" ], @"use rack or whatever" ]
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"rack");
+    });
+    
+    it(@"should detect sinatra apps", ^{
+        expect(NO).to.beTruthy();
+    });
+    
+    it(@"should detect node apps", ^{
+        NSArray *nodeSentinels = @[ @"server.js", @"app.js", @"index.js", @"main.js" ];
+        
+        [nodeSentinels each:^(id s) {
+            createFiles(@[
+                        @[ @[ s ], @"some javascript or whatever" ]
+                        ]);
+            
+            NSString *framework = DetectFrameworkFromPath(rootURL);
+            
+            cleanup();
+            
+            expect(framework).to.equal(@"node");
+        }];
+    });
+    
+    it(@"should detect django apps", ^{
+        createFiles(@[
+                    @[ @[ @"manage.py" ], @"boot django or whatever" ],
+                    @[ @[ @"settings.py" ], @"DEBUG = lol" ],
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"django");
+    });
+    
+    it(@"should detect php apps", ^{
+        createFiles(@[
+                    @[ @[ @"anything.php" ], @"$phpinfolol()" ]
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"php");
+    });
+    
+    it(@"should detect erlang/otp rebar apps", ^{
+        createFiles(@[
+                    @[ @[ @"releases", @"foo", @"foo.rel" ], @"whatever this contains" ],
+                    @[ @[ @"releases", @"bar", @"bar.boot" ], @"whatever that contains" ]
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"otp_rebar");
+    });
+    
+    it(@"should detect WSGI apps", ^{
+        createFiles(@[
+                    @[ @[ @"wsgi.py" ], @"def application(req, start_res):\n\t\return process(req)\n" ]
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"wsgi");
+    });
+    
+    it(@"should detect ASP.NET apps", ^{
+        createFiles(@[
+                    @[ @[ @"web.config" ], @"<inscrutable><opaque><soup>blech</soup></opaque></inscrutable>" ]
+                    ]);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"dotnet");
+    });
+    
+    // java stuff is a little crazy. while the file structures are all about the same
+    // they can be found a few different ways.
+    //
+    // - on the root path
+    // - in a war file *in* the root path
+    // - in a war file that *is* the root path
+    
+    
+    void (^createArchiveOnRootPath)(NSArray *, NSString *) = ^ (NSArray *manifest, NSString *name) {
+        createFilesAtRoot(manifest, zipScratchRoot);
+        
+        createZipFile(zipScratchRoot, [root concat:@[ name ]], [manifest map:^id(id i) {
+            return ((NSArray *)i)[0];
+        }]);
+    };
+    
+    void (^createWarOnRootPath)(NSArray *) = ^ (NSArray *manifest) {
+        createArchiveOnRootPath(manifest, @"foo.war");
+    };
+    
+    void (^createZipOnRootPath)(NSArray *) = ^ (NSArray *manifest) {
+        createArchiveOnRootPath(manifest, @"foo.zip");
+    };
+    
+    
+    void (^createArchiveAtRootPath)(NSArray *, NSString *name) = ^ void (NSArray *manifest, NSString *name) {
+        createFilesAtRoot(manifest, zipScratchRoot);
+        
+        NSArray *archivePathComponents = @[NSTemporaryDirectory(), name];
+        archivePathToCleanUp = [NSString pathWithComponents:archivePathComponents];
+        archiveRootURL = [NSURL fileURLWithPath:archivePathToCleanUp];
+        createZipFile(zipScratchRoot, archivePathComponents, [manifest map:^id(id i) {
+            return ((NSArray *)i)[0];
+        }]);
+    };
+    
+    void (^createWarAtRootPath)(NSArray *) = ^ void (NSArray *manifest) {
+        createArchiveAtRootPath(manifest, @"ThorTestWar.war");
+    };
+    
+    void (^createZipAtRootPath)(NSArray *) = ^ void (NSArray *manifest) {
+        createArchiveAtRootPath(manifest, @"ThorTestZip.zip");
+    };
+    
+    id grailsManifest = @[
+        @[ @[ @"WEB-INF", @"web.xml" ], @"whatever" ],
+        @[ @[ @"WEB-INF", @"lib", @"grails-web-1.3.1.jar" ], @"blob" ]
+    ];
+    
+    it(@"should detect grails apps on root path", ^{
+        createFiles(grailsManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"grails");
+    });
+    
+    it(@"should detect grails apps in war on root path", ^{
+        createWarOnRootPath(grailsManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"grails");
+    });
+    
+    it(@"should detect grails apps in war at root path", ^{
+        createWarAtRootPath(grailsManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"grails");
+    });
+    
+    id liftManifest = @[
+        @[ @[ @"WEB-INF", @"web.xml" ], @"whatever" ],
+        @[ @[ @"WEB-INF", @"lib", @"lift-webkit-1.0.1.jar" ], @"blob" ]
+    ];
+    
+    it(@"should detect lift apps on root path", ^{
+        createFiles(liftManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"lift");
+    });
+    
+    it(@"should detect lift apps in war on root path", ^{
+        createWarOnRootPath(liftManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"lift");
+    });
+    
+    it(@"should detect lift apps in war at root path", ^{
+        createWarAtRootPath(liftManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"lift");
+    });
+    
+    id springCoreManifest = @[
+        @[ @[ @"WEB-INF", @"web.xml" ], @"whatever" ],
+        @[ @[ @"WEB-INF", @"lib", @"spring-core-2.0.1.jar" ], @"blob" ]
+    ];
+    
+    it(@"should detect spring apps on root path with spring-core jar", ^{
+        createFiles(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war on root path with spring-core jar", ^{
+        createWarOnRootPath(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war at root path with spring-core jar", ^{
+        createWarAtRootPath(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    id springFrameworkCoreManifest = @[
+        @[ @[ @"WEB-INF", @"web.xml" ], @"whatever" ],
+        @[ @[ @"WEB-INF", @"lib", @"org.springframework.core-2.0.1.jar" ], @"blob" ]
+    ];
+    
+    it(@"should detect spring apps on root path with org.springframework.core jar", ^{
+        createFiles(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war on root path with org.springframework.core jar", ^{
+        createWarOnRootPath(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war at root path with org.springframework.core jar", ^{
+        createWarAtRootPath(springCoreManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    id springFrameworkClassesManifest = @[
+    @[ @[ @"WEB-INF", @"web.xml" ], @"whatever" ],
+    @[ @[ @"WEB-INF", @"classes", @"org", @"springframework", @"whatever.class" ], @"blob" ]
+    ];
+    
+    it(@"should detect spring apps on root path with springframework classes", ^{
+        createFiles(springFrameworkClassesManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war on root path with springframework classes", ^{
+        createWarOnRootPath(springFrameworkClassesManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect spring apps in war at root path with springframework classes", ^{
+        createWarAtRootPath(springFrameworkClassesManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"spring");
+    });
+    
+    it(@"should detect other java web apps on root path", ^{
+        expect(NO).to.beTruthy();
+    });
+    
+    id playManifest = @[
+        @[ @[ @"lib", @"play.1.0.jar" ], @"stuff" ]
+    ];
+    
+    it(@"should detect play apps in zip on root path", ^{
+        createZipOnRootPath(playManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(rootURL);
+        
+        expect(framework).to.equal(@"play");
+    });
+    
+    it(@"should detect play apps in zip at root path", ^{
+        createZipAtRootPath(playManifest);
+        
+        NSString *framework = DetectFrameworkFromPath(archiveRootURL);
+        
+        expect(framework).to.equal(@"play");
     });
 });
+
+// this tests a full create/post slug deployment to a CF service. it's disabled
+// because it assumes a CF service exists and we don't want test failures
+// if that is not the case. so it's here for posterity i guess.
+//
+//describe(@"TestDeployment", ^{
+//    it(@"should deploy a thing", ^{
+//        
+//        NSArray *repoPathComponents = @[ NSTemporaryDirectory(), @"paasIt" ];
+//        NSString *repoPath = [NSString pathWithComponents:repoPathComponents];
+//        
+//        [[NSFileManager defaultManager] removeItemAtPath:repoPath error:nil];
+//        NSURL *repoURL = [NSURL fileURLWithPath:repoPath];
+//        
+//        NSTask *task = [NSTask new];
+//        task.launchPath = @"/usr/bin/git";
+//        task.arguments = @[ @"clone", @"git://github.com/Adron/goldmind.git", repoPath ];
+//        [task launch];
+//        [task waitUntilExit];
+//        
+//        NSURL *nodeTestAppURL = [NSURL fileURLWithPath:[NSString pathWithComponents:repoPathComponents]];
+//        
+//        NSArray *manifest = CreateSlugManifestFromPath(nodeTestAppURL);
+//        NSURL *slug = CreateSlugFromManifest(manifest, nodeTestAppURL);
+//        
+//        FoundryEndpoint *endpoint = [FoundryEndpoint new];
+//        endpoint.email = @"b@bvanderveen.com";
+//        endpoint.password = @"secret";
+//        endpoint.hostname = @"api.bvanderveen.cloudfoundry.me";
+//        
+//        FoundryService *service = [[FoundryService alloc] initWithEndpoint:endpoint];
+//        
+//        FoundryApp *app = [FoundryApp new];
+//        app.name = @"goldmind-test";
+//        app.uris = @[ [NSString stringWithFormat:@"%@.bvanderveen.cloudfoundry.me", app.name] ];
+//        app.instances = 1;
+//        //app.state = FoundryAppStateStarted;
+//        app.memory = 64;
+//        //app.disk = 2048;
+//        app.stagingFramework = @"node";
+//        //app.stagingRuntime = [NSNull null];//@"node";
+//        //app.services = @[];
+//        
+//        __block BOOL done = NO, err = NO;
+//        int attempts = 0;
+//        
+//        [[service createApp:app] subscribeError:^ (NSError *error) {
+//            NSLog(@"error: %@", [error localizedDescription]);
+//            err = YES;
+//        } completed:^{
+//            [[service postSlug:slug manifest:manifest toAppWithName:app.name] subscribeError: ^ (NSError *error) {
+//                NSLog(@"error: %@", [error localizedDescription]);
+//                err = YES;
+//            } completed:^{
+//                done = YES;
+//                NSError *error = nil;
+//            }];
+//        }];
+//        
+//        while (!done && !err && attempts++ < 1) {
+//            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:15.0]];
+//        }
+//        
+//        expect(err).to.beFalsy();
+//        expect(done).to.beTruthy();
+//        
+//        NSError *error;
+//        [[NSFileManager defaultManager] removeItemAtPath:repoPath error:&error];
+//        [[NSFileManager defaultManager] removeItemAtPath:slug.path error:&error];
+//    });
+//});
+
+
 
 SpecEnd

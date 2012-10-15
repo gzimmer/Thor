@@ -28,7 +28,7 @@
 
 @implementation DeploymentPropertiesController
 
-@synthesize title;
+@synthesize title, commitButtonTitle;
 
 + (DeploymentPropertiesController *)newDeploymentControllerWithTarget:(Target *)target app:(App *)app {
     DeploymentPropertiesController *result = [[DeploymentPropertiesController alloc] init];
@@ -36,6 +36,7 @@
     result.deployment.app = app;
     result.deployment.appName = [((NSURL *)[NSURL fileURLWithPath:app.localRoot]).pathComponents lastObject];
     result.deployment.target = target;
+    result.title = @"Create deployment";
     return result;
 }
 
@@ -43,6 +44,7 @@
 
 - (id)init {
     if (self = [super initWithNibName:@"DeploymentPropertiesView" bundle:[NSBundle mainBundle]]) {
+        self.commitButtonTitle = @"Done";
     }
     return self;
 }
@@ -67,45 +69,43 @@
     }];
 }
 
-- (void)buttonClicked:(NSButton *)button {
-    if (button == deploymentPropertiesView.confirmButton) {
-        NSError *error = nil;
-        [objectController commitEditing];
-        
-        // TODO revert this if the remote creation fails.
-        if (![[ThorBackend sharedContext] save:&error]) {
-            [NSApp presentError:error];
-            NSLog(@"There was an error! %@", [error.userInfo objectForKey:NSLocalizedDescriptionKey]);
-        }
-        else {
-            FoundryService *service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
-            
-            FoundryApp *app = [FoundryApp new];
-            app.name = deployment.appName;
-            app.uris = @[];
-            app.stagingFramework = @"node";
-            app.instances = deployment.instances;
-            app.memory = deployment.memory;
-            
-            // TODO display spinner while waiting.
-            deploymentPropertiesView.confirmButton.enabled = NO;
-            
-            RACSubscribable *subscribable = [[self ensureService:service doesNotHaveAppWithName:deployment.appName] continueWith:[service createApp:app]];
-            
-            self.associatedDisposable = [subscribable subscribeNext: ^ (id n) {
-                NSLog(@"%@", n);
-            } error:^(NSError *error) {
-                [NSApp presentError:error];
-                deploymentPropertiesView.confirmButton.enabled = YES;
-            } completed:^{
-                [NSApp endSheet:self.view.window];
-            }];
-        }
+- (void)commitWizardPanel {
+    NSError *error = nil;
+    [objectController commitEditing];
+    
+    // TODO revert this if the remote creation fails.
+    if (![[ThorBackend sharedContext] save:&error]) {
+        [NSApp presentError:error];
+        NSLog(@"There was an error! %@", [error.userInfo objectForKey:NSLocalizedDescriptionKey]);
     }
     else {
-        [[ThorBackend sharedContext] rollback];
-        [NSApp endSheet:self.view.window];
+        FoundryService *service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
+        
+        FoundryApp *app = [FoundryApp new];
+        app.name = deployment.appName;
+        app.uris = @[];
+        app.stagingFramework = @"node";
+        app.instances = deployment.instances;
+        app.memory = deployment.memory;
+        
+        // TODO display spinner while waiting.
+        self.wizardController.commitButtonEnabled = NO;
+        
+        RACSubscribable *subscribable = [[self ensureService:service doesNotHaveAppWithName:deployment.appName] continueWith:[service createApp:app]];
+        
+        self.associatedDisposable = [subscribable subscribeNext: ^ (id n) {
+            NSLog(@"%@", n);
+        } error:^(NSError *error) {
+            [NSApp presentError:error];
+            self.wizardController.commitButtonEnabled = YES;
+        } completed:^{
+            [self.wizardController dismissWithReturnCode:NSOKButton];
+        }];
     }
+}
+
+- (void)rollbackWizardPanel {
+    [[ThorBackend sharedContext] rollback];
 }
 
 @end
