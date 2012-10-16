@@ -1,4 +1,5 @@
 
 #import "ThorBackend.h"
 #import "FoundryService.h"
-#import "Target+FoundryEndpointCreation.h"
+#import "FoundryEndpoint+CreateFromTarget.h"
+#import "FoundryApp+CreateFromDeployment.h"

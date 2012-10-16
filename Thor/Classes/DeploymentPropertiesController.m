@@ -1,24 +1,6 @@
 #import "DeploymentPropertiesController.h"
 #import "NSObject+AssociateDisposable.h"
-#import "RACSubscribable+ShowLoadingView.h"
-
-@interface RACSubscribable (ContinueAfter)
-
-- (RACSubscribable *)continueWith:(RACSubscribable *)subscribable;
-
-@end
-
-@implementation RACSubscribable (ContinueAfter)
-
-- (RACSubscribable *)continueWith:(RACSubscribable *)subscribable {
-    return [[self select:^id(id x) {
-        return subscribable;
-    }] selectMany:^id<RACSubscribable>(id x) {
-        return x;
-    }];
-}
-
-@end
+#import "RACSubscribable+Extensions.h"
 
 @interface DeploymentPropertiesController ()
 
@@ -81,12 +63,7 @@
     else {
         FoundryService *service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
         
-        FoundryApp *app = [FoundryApp new];
-        app.name = deployment.appName;
-        app.uris = @[];
-        app.stagingFramework = @"node";
-        app.instances = deployment.instances;
-        app.memory = deployment.memory;
+        FoundryApp *app = [FoundryApp appWithDeployment:deployment];
         
         // TODO display spinner while waiting.
         self.wizardController.commitButtonEnabled = NO;

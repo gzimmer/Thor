@@ -1,7 +1,8 @@
 #import "DeploymentController.h"
 #import "NSObject+AssociateDisposable.h"
-#import "RACSubscribable+ShowLoadingView.h"
+#import "RACSubscribable+Extensions.h"
 #import "GridView.h"
+#import "FileSizeInMBTransformer.h"
 
 @interface DeploymentController ()
 
@@ -28,24 +29,71 @@ static NSArray *instanceColumns = nil;
     return self;
 }
 
-- (void)awakeFromNib {
+- (void)updateAppAndStatsAfterSubscribable:(RACSubscribable *)antecedent {
     NSError *error = nil;
     
     NSArray *subscribables = @[
-        [service getStatsForAppWithName:deployment.appName],
-        [service getAppWithName:deployment.appName]];
+    [[service getStatsForAppWithName:deployment.appName] doNext:^(id x) {
+        self.instanceStats = x;
+    }],
+    [[service getAppWithName:deployment.appName] doNext:^(id x) {
+        self.app = x;
+    }]];
     
     RACSubscribable *call = [[RACSubscribable combineLatest:subscribables] showLoadingViewInView:self.view];
     
-    self.associatedDisposable = [call subscribeNext:^ (id x) {
-        RACTuple *tuple = (RACTuple *)x;
-        self.instanceStats = tuple.first;
-        self.app = tuple.second;
+    if (antecedent)
+        call = [antecedent continueWith:call];
+    
+    self.associatedDisposable = [call subscribeError:^ (NSError *error) {
+        if ([error.domain isEqual:@"SMWebRequest"] && error.code == 404) {
+            [self presentMissingDeploymentDialog];
+        }
+        else {
+            [NSApp presentError:error];
+        }
+    } completed:^ {
         [deploymentView.instancesGrid reloadData];
         deploymentView.needsLayout = YES;
-    } error:^ (NSError *error) {
-        [NSApp presentError:error];
     }];
+}
+
+- (void)awakeFromNib {
+    [self updateAppAndStatsAfterSubscribable:nil];
+}
+
+- (void)presentMissingDeploymentDialog {
+    NSAlert *alert = [NSAlert alertWithMessageText:@"The deployment has disappeared from the cloud." defaultButton:@"Forget deployment" alternateButton:@"Recreate deployment" otherButton:nil informativeTextWithFormat:@"The deployment no longer exists on the cloud. Would you like to re-create it or forget about it?"];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:nil];
+}
+
+- (void)deleteDeployment {
+    [[ThorBackend sharedContext] deleteObject:deployment];
+    
+    NSError *error;
+    if (![[ThorBackend sharedContext] save:&error]) {
+        [NSApp presentError:error];
+    }
+    
+    [self.breadcrumbController popViewControllerAnimated:YES];
+}
+
+- (void)recreateDeployment {
+    RACSubscribable *createApp = [service createApp:[FoundryApp appWithDeployment:deployment]];
+    [self updateAppAndStatsAfterSubscribable:createApp];
+}
+
+- (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
+    switch (returnCode) {
+        case NSAlertDefaultReturn:
+            [self deleteDeployment];
+            break;
+        case NSAlertAlternateReturn:
+            [self recreateDeployment];
+            break;
+    }
+    
+    [NSApp endSheet:alert.window];
 }
 
 - (id<BreadcrumbItem>)breadcrumbItem {
@@ -69,6 +117,8 @@ static NSArray *instanceColumns = nil;
     
     NSString *labelTitle;
     
+    NSValueTransformer *transformer = [FileSizeInMBTransformer new];
+    
     switch (columnIndex) {
         case 0:
             labelTitle = stats.ID;
@@ -77,16 +127,21 @@ static NSArray *instanceColumns = nil;
             labelTitle = stats.host;
             break;
         case 2:
-            labelTitle = [NSString stringWithFormat:@"%f", stats.cpu];
+            labelTitle = [NSString stringWithFormat:@"%2.0f%%", stats.cpu];
             break;
         case 3:
-            labelTitle = [NSString stringWithFormat:@"%f", stats.memory];
+            labelTitle = [transformer transformedValue:[NSNumber numberWithFloat:stats.memory]];
             break;
         case 4:
-            labelTitle = [NSString stringWithFormat:@"%ld", stats.disk];
+            labelTitle = [transformer transformedValue:[NSNumber numberWithFloat:stats.disk]];
             break;
-        case 5:
-            labelTitle = [NSString stringWithFormat:@"%f", stats.uptime];
+        case 5:;
+            NSInteger ti = (NSInteger)roundf(stats.uptime + 23483.0);
+            NSInteger seconds = ti % 60;
+            NSInteger minutes = (ti / 60) % 60;
+            NSInteger hours = (ti / 3600);
+            
+            labelTitle = [NSString stringWithFormat:@"%02ld:%02ld:%02ld", hours, minutes, seconds];
             break;
     }
     
