@@ -11,6 +11,8 @@
 #import "DeploymentPropertiesController.h"
 #import "AddDeploymentListViewSource.h"
 
+#define CONFIRM_DELETION_ALERT_CONTEXT @"ConfirmDeletion"
+
 @interface TargetController ()
 
 @property (nonatomic, strong) NSArray *apps;
@@ -22,12 +24,7 @@
 
 @implementation TargetController
 
-@synthesize target = _target, targetView, breadcrumbController, title, apps, service, targetPropertiesController, listSource;
-
-- (void)setTarget:(Target *)value {
-    _target = value;
-    self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:value]];
-}
+@synthesize target, targetView, breadcrumbController, title, apps, service, targetPropertiesController, listSource;
 
 - (id<BreadcrumbItem>)breadcrumbItem {
     return self;
@@ -36,8 +33,30 @@
 - (id)init {
     if (self = [super initWithNibName:@"TargetView" bundle:[NSBundle mainBundle]]) {
         self.title = @"Cloud";
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(managedObjectContextNotification:) name:NSManagedObjectContextObjectsDidChangeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(managedObjectContextNotification:) name:NSManagedObjectContextDidSaveNotification object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)managedObjectContextNotification:(NSNotification *)notification {
+    if ([notification.name isEqual:NSManagedObjectContextObjectsDidChangeNotification] ||
+        [notification.name isEqual:NSManagedObjectContextDidSaveNotification]) {
+        BOOL (^isRelevantDeployment)(id) = ^BOOL(id d) {
+            return [d isKindOfClass:[Deployment class]] && [((Deployment *)d).target isEqual:self.target];
+        };
+        
+        NSArray *inserted = [notification.userInfo[NSInsertedObjectsKey] allObjects];
+        NSArray *deleted = [notification.userInfo[NSDeletedObjectsKey] allObjects];
+        
+        if ([[[@[] concat:inserted] concat:deleted] any:isRelevantDeployment])
+            [self updateApps];
+    }
 }
 
 - (void)awakeFromNib {
@@ -52,6 +71,7 @@
 }
 
 - (void)updateApps {
+    self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:target]];
     self.associatedDisposable = [[[service getApps] showLoadingViewInView:self.view] subscribeNext:^(id x) {
         self.apps = x;
         [targetView.deploymentsList reloadData];
@@ -69,10 +89,10 @@
     return apps.count;
 }
 
-- (BOOL)hasDeploymentForApp:(FoundryApp *)app {
+- (Deployment *)deploymentForApp:(FoundryApp *)app {
     NSError *error;
-    NSArray *deployments = [[ThorBackend shared] getDeploymentsForTarget:self.target error:&error];
-    return [deployments any:^ BOOL (id d) { return [((Deployment *)d).appName isEqual:app.name]; }];
+    NSArray *deployments = [[[ThorBackend shared] getDeploymentsForTarget:self.target error:&error] filter:^ BOOL (id d) { return [((Deployment *)d).name isEqual:app.name]; }];
+    return deployments.count ? deployments[0] : nil;
 }
 
 - (ItemsController *)createAppItemsController {
@@ -88,7 +108,7 @@
     
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
         App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:self.target app:app];
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentControllerWithDeployment:[Deployment deploymentWithApp:app target:target]];
         [wizardController pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
     
@@ -111,7 +131,7 @@
         App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
         
         Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-        deployment.appName = foundryApp.name;
+        deployment.name = foundryApp.name;
         deployment.app = app;
         deployment.target = self.target;
         
@@ -138,7 +158,7 @@
     AppCell *cell = [[AppCell alloc] initWithFrame:NSZeroRect];
     FoundryApp *app = apps[row];
     cell.app = app;
-    cell.button.hidden = [self hasDeploymentForApp:app];
+    cell.button.hidden = [self deploymentForApp:app] != nil;
     [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
         [self createDeploymentForApp:app];
     }]];
@@ -147,11 +167,13 @@
 
 - (void)listView:(ListView *)listView didSelectRowAtIndex:(NSUInteger)row {
     FoundryApp *app = apps[row];
-    Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-    deployment.appName = app.name;
-    deployment.target = self.target;
     
-    DeploymentController *deploymentController = [[DeploymentController alloc] initWithDeployment:deployment];
+    Deployment *deployment = [self deploymentForApp:app];
+    
+    DeploymentController *deploymentController = deployment ?
+        [DeploymentController deploymentControllerWithDeployment:deployment] :
+        [DeploymentController deploymentControllerWithAppName:app.name target:self.target];
+    
     [self.breadcrumbController pushViewController:deploymentController animated:YES];
 }
 
@@ -170,16 +192,28 @@
     [self updateApps];
 }
 
-- (void)deleteClicked:(id)sender {
-    [[ThorBackend sharedContext] deleteObject:self.target];
-    NSError *error;
-    
-    if (![[ThorBackend sharedContext] save:&error]) {
-        [NSApp presentError:error];
-        return;
+- (void)presentConfirmDeletionDialog {
+    NSAlert *alert = [NSAlert alertWithMessageText:@"Are you sure you wish to delete this cloud?" defaultButton:@"Delete" alternateButton:@"Cancel" otherButton:nil informativeTextWithFormat:@"The cloud and its deployments will no longer appear in Thor. The cloud itself will not be changed."];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:CONFIRM_DELETION_ALERT_CONTEXT];
+}
+
+- (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
+    NSString *contextString = (__bridge NSString *)contextInfo;
+    if ([contextString isEqual:CONFIRM_DELETION_ALERT_CONTEXT]) {
+        [[ThorBackend sharedContext] deleteObject:target];
+        NSError *error;
+        
+        if (![[ThorBackend sharedContext] save:&error]) {
+            [NSApp presentError:error];
+            return;
+        }
+        
+        [self.breadcrumbController popViewControllerAnimated:YES];
     }
-    
-    [self.breadcrumbController popViewControllerAnimated:YES];
+}
+
+- (void)deleteClicked:(id)sender {
+    [self presentConfirmDeletionDialog];
 }
 
 @end
