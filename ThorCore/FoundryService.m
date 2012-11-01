@@ -111,6 +111,18 @@ NSString *AppStateStringFromState(FoundryAppState state) {
     app.name = appDict[@"name"];
     app.uris = appDict[@"uris"];
     app.instances = [appDict[@"instances"] intValue];
+    
+    NSDictionary *staging = appDict[@"staging"];
+    
+    if ([[staging allKeys] containsObject:@"model"])
+        app.stagingFramework = staging[@"model"];
+    else if ([[staging allKeys] containsObject:@"framework"])
+        app.stagingFramework = staging[@"framework"];
+    
+    if ([[staging allKeys] containsObject:@"stack"])
+        app.stagingFramework = staging[@"stack"];
+    else if ([[staging allKeys] containsObject:@"runtime"])
+        app.stagingFramework = staging[@"runtime"];
 
     NSString *state = appDict[@"state"];
     
@@ -416,6 +428,10 @@ NSString *DetectFrameworkFromPath(NSURL *rootURL) {
 
 - (RACSubscribable *)createApp:(FoundryApp *)app {
     return [endpoint authenticatedRequestWithMethod:@"POST" path:@"/apps" headers:nil body:[app dictionaryRepresentation]];
+}
+
+- (RACSubscribable *)updateApp:(FoundryApp *)app {
+    return [endpoint authenticatedRequestWithMethod:@"PUT" path:[NSString stringWithFormat:@"/apps/%@", app.name] headers:nil body:[app dictionaryRepresentation]];
 }
 
 - (RACSubscribable *)deleteAppWithName:(NSString *)name {

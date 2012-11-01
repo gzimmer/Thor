@@ -3,10 +3,19 @@
 #import "RACSubscribable+Extensions.h"
 #import "GridView.h"
 #import "FileSizeInMBTransformer.h"
+#import "DeploymentPropertiesController.h"
+#import "WizardController.h"
+#import "SheetWindow.h"
+
+#define MISSING_DEPLOYMENT_ALERT_CONTEXT @"Missing"
+#define NOT_FOUND_ALERT_CONTEXT @"NotFound"
+#define CONFIRM_DELETION_ALERT_CONTEXT @"ConfirmDeletion"
 
 @interface DeploymentController ()
 
 @property (nonatomic, strong) FoundryService *service;
+@property (nonatomic, copy) NSString *appName;
+@property (nonatomic, strong) DeploymentPropertiesController *deploymentPropertiesController;
 
 @end
 
@@ -14,29 +23,38 @@ static NSArray *instanceColumns = nil;
 
 @implementation DeploymentController
 
-@synthesize service, deployment, app, title, deploymentView, breadcrumbController, instanceStats;
+@synthesize service, deployment, app, appName, title, deploymentView, breadcrumbController, instanceStats, deploymentPropertiesController;
 
 + (void)initialize {
     instanceColumns = @[@"ID", @"Host name", @"CPU", @"Memory", @"Disk", @"Uptime"];
 }
 
-- (id)initWithDeployment:(Deployment *)leDeployment {
+- (id)initWithTarget:(Target *)leTarget appName:(NSString *)lAppName deployment:(Deployment *)leDeployment {
     if (self = [super initWithNibName:@"DeploymentView" bundle:[NSBundle mainBundle]]) {
-        self.title = leDeployment.appName;
+        self.title = lAppName;
+        self.appName = lAppName;
         self.deployment = leDeployment;
-        self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
+        self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
     }
     return self;
+}
+
++ (DeploymentController *)deploymentControllerWithDeployment:(Deployment *)deployment {
+    return [[DeploymentController alloc] initWithTarget:deployment.target appName:deployment.name deployment:deployment];
+}
+
++ (DeploymentController *)deploymentControllerWithAppName:(NSString *)name target:(Target *)target {
+    return [[DeploymentController alloc] initWithTarget:target appName:name deployment:nil];
 }
 
 - (void)updateAppAndStatsAfterSubscribable:(RACSubscribable *)antecedent {
     NSError *error = nil;
     
     NSArray *subscribables = @[
-    [[service getStatsForAppWithName:deployment.appName] doNext:^(id x) {
+    [[service getStatsForAppWithName:appName] doNext:^(id x) {
         self.instanceStats = x;
     }],
-    [[service getAppWithName:deployment.appName] doNext:^(id x) {
+    [[service getAppWithName:appName] doNext:^(id x) {
         self.app = x;
     }]];
     
@@ -47,7 +65,10 @@ static NSArray *instanceColumns = nil;
     
     self.associatedDisposable = [call subscribeError:^ (NSError *error) {
         if ([error.domain isEqual:@"SMWebRequest"] && error.code == 404) {
-            [self presentMissingDeploymentDialog];
+            if (deployment)
+                [self presentMissingDeploymentDialog];
+            else
+                [self presentDeploymentNotFoundDialog];
         }
         else {
             [NSApp presentError:error];
@@ -62,9 +83,19 @@ static NSArray *instanceColumns = nil;
     [self updateAppAndStatsAfterSubscribable:nil];
 }
 
+- (void)presentDeploymentNotFoundDialog {
+    NSAlert *alert = [NSAlert alertWithMessageText:@"Deployment not found" defaultButton:@"OK" alternateButton:nil otherButton:nil informativeTextWithFormat:@"The deployment no longer exists on the cloud."];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:NOT_FOUND_ALERT_CONTEXT];
+}
+
 - (void)presentMissingDeploymentDialog {
-    NSAlert *alert = [NSAlert alertWithMessageText:@"The deployment has disappeared from the cloud." defaultButton:@"Forget deployment" alternateButton:@"Recreate deployment" otherButton:nil informativeTextWithFormat:@"The deployment no longer exists on the cloud. Would you like to re-create it or forget about it?"];
-    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:nil];
+    NSAlert *alert = [NSAlert alertWithMessageText:@"The deployment has disappeared from the cloud." defaultButton:@"Forget deployment" alternateButton:@"Recreate deployment" otherButton:nil informativeTextWithFormat:@"The deployment no longer exists on the cloud. Would you like to recreate it or forget about it?"];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:MISSING_DEPLOYMENT_ALERT_CONTEXT];
+}
+
+- (void)presentConfirmDeletionDialog {
+    NSAlert *alert = [NSAlert alertWithMessageText:@"Are you sure you wish to delete this deployment?" defaultButton:@"Delete" alternateButton:@"Cancel" otherButton:nil informativeTextWithFormat:@"The deployment will be removed from the cloud. This action cannot be undone."];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:CONFIRM_DELETION_ALERT_CONTEXT];
 }
 
 - (void)deleteDeployment {
@@ -74,8 +105,6 @@ static NSArray *instanceColumns = nil;
     if (![[ThorBackend sharedContext] save:&error]) {
         [NSApp presentError:error];
     }
-    
-    [self.breadcrumbController popViewControllerAnimated:YES];
 }
 
 - (void)recreateDeployment {
@@ -84,13 +113,32 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
-    switch (returnCode) {
-        case NSAlertDefaultReturn:
-            [self deleteDeployment];
-            break;
-        case NSAlertAlternateReturn:
-            [self recreateDeployment];
-            break;
+    NSString *contextString = (__bridge NSString *)contextInfo;
+    if ([contextString isEqual:MISSING_DEPLOYMENT_ALERT_CONTEXT]) {
+        assert(deployment != nil);    
+        switch (returnCode) {
+            case NSAlertDefaultReturn:
+                [self deleteDeployment];
+                [self.breadcrumbController popViewControllerAnimated:YES];
+                break;
+            case NSAlertAlternateReturn:
+                [self recreateDeployment];
+                break;
+        }
+    }
+    else if ([contextString isEqual:NOT_FOUND_ALERT_CONTEXT]) {
+        [self.breadcrumbController popViewControllerAnimated:YES];
+    }
+    else if ([contextString isEqual:CONFIRM_DELETION_ALERT_CONTEXT]) {
+        if (returnCode == NSAlertDefaultReturn) {
+            self.associatedDisposable = [[service deleteAppWithName:self.appName] subscribeError:^(NSError *error) {
+                [NSApp presentError:error];
+            } completed:^{
+                if (deployment)
+                    [self deleteDeployment];
+                [self.breadcrumbController popViewControllerAnimated:YES];
+            }];
+        }
     }
     
     [NSApp endSheet:alert.window];
@@ -152,22 +200,28 @@ static NSArray *instanceColumns = nil;
     NSLog(@"Clicked at index %lu", row);
 }
 
+- (IBAction)editClicked:(id)sender {
+    if (deployment)
+        self.deploymentPropertiesController = [DeploymentPropertiesController deploymentControllerWithDeployment:deployment];
+    else
+        self.deploymentPropertiesController = [DeploymentPropertiesController deploymentControllerWithApp:app service:service];
+    
+    deploymentPropertiesController.title = @"Update deployment";
+    
+    WizardController *wizard = [[WizardController alloc] initWithRootViewController:deploymentPropertiesController];
+    NSWindow *window = [SheetWindow sheetWindowWithView:wizard.view];
+    [wizard viewWillAppear];
+    [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:NULL];
+}
+
+- (void)sheetDidEnd:(NSWindow *)sheet returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
+    self.deploymentPropertiesController = nil;
+    [sheet orderOut:self];
+    [self updateAppAndStatsAfterSubscribable:nil];
+}
+
 - (IBAction)deleteClicked:(id)sender {
-    self.associatedDisposable = [[service deleteAppWithName:deployment.appName] subscribeError:^(NSError *error) {
-        [NSApp presentError:error];
-    } completed:^{
-        deployment.target = nil;
-        
-        [[ThorBackend sharedContext] deleteObject:deployment];
-        NSError *error;
-        
-        if (![[ThorBackend sharedContext] save:&error]) {
-            [NSApp presentError:error];
-            return;
-        }
-        
-        [self.breadcrumbController popViewControllerAnimated:YES];
-    }];
+    [self presentConfirmDeletionDialog];
 }
 
 @end

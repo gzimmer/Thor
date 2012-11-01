@@ -11,6 +11,8 @@
 #import "AddDeploymentListViewSource.h"
 #import "Sequence.h"
 
+#define CONFIRM_DELETION_ALERT_CONTEXT @"ConfirmDeletion"
+
 static NSInteger AppPropertiesControllerContext;
 static NSInteger DeploymentPropertiesControllerContext;
 
@@ -54,10 +56,10 @@ static NSInteger DeploymentPropertiesControllerContext;
             return [d isKindOfClass:[Deployment class]] && [((Deployment *)d).app isEqual:app];
         };
         
-        NSArray *inserted =  [notification.userInfo[NSInsertedObjectsKey] allObjects];
+        NSArray *inserted = [notification.userInfo[NSInsertedObjectsKey] allObjects];
         NSArray *deleted = [notification.userInfo[NSDeletedObjectsKey] allObjects];
         
-        if ([[inserted concat:deleted] any:isRelevantDeployment])
+        if ([[[@[] concat:inserted] concat:deleted] any:isRelevantDeployment])
             [self updateDeployments];
     }
 }
@@ -68,7 +70,7 @@ static NSInteger DeploymentPropertiesControllerContext;
     noResultsSource.source = self;
     AddDeploymentListViewSource *addDeploymentSource = [[AddDeploymentListViewSource alloc] init];
     addDeploymentSource.source = noResultsSource;
-    addDeploymentSource.action = ^ { [self displayDeploymentDialog]; };
+    addDeploymentSource.action = ^ { [self displayCreateDeploymentDialog]; };
     self.listSource = addDeploymentSource;
     self.appView.deploymentsList.dataSource = listSource;
     self.appView.deploymentsList.delegate = listSource;
@@ -99,7 +101,7 @@ static NSInteger DeploymentPropertiesControllerContext;
 
 - (void)listView:(ListView *)listView didSelectRowAtIndex:(NSUInteger)row {
     Deployment *deployment = deployments[row];
-    DeploymentController *deploymentController = [[DeploymentController alloc] initWithDeployment:deployment];
+    DeploymentController *deploymentController = [DeploymentController deploymentControllerWithDeployment:deployment];
     [self.breadcrumbController pushViewController:deploymentController animated:YES];
 }
 
@@ -124,7 +126,7 @@ static NSInteger DeploymentPropertiesControllerContext;
     [sheet orderOut:self];
 }
 
-- (void)displayDeploymentDialog {
+- (void)displayCreateDeploymentDialog {
     __block WizardController *wizard;
     
     ItemsController *targetsController = [[ItemsController alloc] init];
@@ -133,7 +135,7 @@ static NSInteger DeploymentPropertiesControllerContext;
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
         Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
         
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentControllerWithTarget:target app:app];
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentControllerWithDeployment:[Deployment deploymentWithApp:app target:target]];
         [wizard pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
     
@@ -146,29 +148,28 @@ static NSInteger DeploymentPropertiesControllerContext;
     [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:&DeploymentPropertiesControllerContext];
 }
 
-- (void)displayDeploymentDialogWithTarget:(Target *)target {
-    Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-    deployment.app = app;
-    deployment.target = target;
-    deployment.instances = 1;
-    
-    self.deploymentPropertiesController = [DeploymentPropertiesController new];
-    deploymentPropertiesController.deployment = deployment;
-    
-    NSWindow *window = [SheetWindow sheetWindowWithView:deploymentPropertiesController.view];
-    [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:&DeploymentPropertiesControllerContext];
+- (void)presentConfirmDeletionDialog {
+    NSAlert *alert = [NSAlert alertWithMessageText:@"Are you sure you wish to delete this application?" defaultButton:@"Delete" alternateButton:@"Cancel" otherButton:nil informativeTextWithFormat:@"The application will no longer appear in Thor. It will not be removed from your hard drive or from any cloud."];
+    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:CONFIRM_DELETION_ALERT_CONTEXT];
+}
+
+- (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
+    NSString *contextString = (__bridge NSString *)contextInfo;
+    if ([contextString isEqual:CONFIRM_DELETION_ALERT_CONTEXT]) {
+        [[ThorBackend sharedContext] deleteObject:app];
+        NSError *error;
+        
+        if (![[ThorBackend sharedContext] save:&error]) {
+            [NSApp presentError:error];
+            return;
+        }
+        
+        [self.breadcrumbController popViewControllerAnimated:YES];
+    }
 }
 
 - (void)deleteClicked:(id)sender {
-    [[ThorBackend sharedContext] deleteObject:app];
-    NSError *error;
-    
-    if (![[ThorBackend sharedContext] save:&error]) {
-        [NSApp presentError:error];
-        return;
-    }
-        
-    [self.breadcrumbController popViewControllerAnimated:YES];
+    [self presentConfirmDeletionDialog];
 }
 
 - (void)pushDeployment:(Deployment *)deployment sender:(NSButton *)button {
@@ -179,7 +180,7 @@ static NSInteger DeploymentPropertiesControllerContext;
         id manifest = CreateSlugManifestFromPath(rootURL);
         NSURL *slug = CreateSlugFromManifest(manifest, rootURL);
         
-        return [[[service postSlug:slug manifest:manifest toAppWithName:deployment.appName] subscribeOn:[RACScheduler mainQueueScheduler]] subscribe:subscriber];
+        return [[[service postSlug:slug manifest:manifest toAppWithName:deployment.name] subscribeOn:[RACScheduler mainQueueScheduler]] subscribe:subscriber];
     }] subscribeOn:[RACScheduler backgroundScheduler]] deliverOn:[RACScheduler mainQueueScheduler]];
     
     button.enabled = NO;

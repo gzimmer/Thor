@@ -4,25 +4,27 @@
 
 @interface DeploymentPropertiesController ()
 
-@property (nonatomic, strong) NSArray *apps; // of FoundryApp
+@property (nonatomic, strong) FoundryService *service;
 
 @end
 
 @implementation DeploymentPropertiesController
 
-@synthesize title, commitButtonTitle;
-
-+ (DeploymentPropertiesController *)newDeploymentControllerWithTarget:(Target *)target app:(App *)app {
++ (DeploymentPropertiesController *)deploymentControllerWithDeployment:(Deployment *)deployment {
     DeploymentPropertiesController *result = [[DeploymentPropertiesController alloc] init];
-    result.deployment = [Deployment deploymentInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-    result.deployment.app = app;
-    result.deployment.appName = [((NSURL *)[NSURL fileURLWithPath:app.localRoot]).pathComponents lastObject];
-    result.deployment.target = target;
-    result.title = @"Create deployment";
+    result.bindingObject = deployment;
+    result.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
     return result;
 }
 
-@synthesize objectController, deployment, deploymentPropertiesView, apps, wizardController;
++ (DeploymentPropertiesController *)deploymentControllerWithApp:(FoundryApp *)app service:(FoundryService *)service {
+    DeploymentPropertiesController *result = [[DeploymentPropertiesController alloc] init];
+    result.bindingObject = app;
+    result.service = service;
+    return result;
+}
+
+@synthesize objectController, deploymentPropertiesView, wizardController, title, commitButtonTitle, service, bindingObject;
 
 - (id)init {
     if (self = [super initWithNibName:@"DeploymentPropertiesView" bundle:[NSBundle mainBundle]]) {
@@ -34,7 +36,7 @@
 #define ThorDeploymentPropertiesControllerErrorDomain @"ThorDeploymentPropertiesControllerErrorDomain"
 #define ThorAppAlreadyExistsErrorCode 0xabcdbeef
 
-- (RACSubscribable *)ensureService:(FoundryService *)service doesNotHaveAppWithName:(NSString *)name {
+- (RACSubscribable *)ensureServiceDoesNotHaveAppWithName:(NSString *)name {
     return [RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
         return [[service getAppWithName:name]
                 subscribeNext:^ (id i) {
@@ -52,33 +54,44 @@
 }
 
 - (void)commitWizardPanel {
-    NSError *error = nil;
     [objectController commitEditing];
     
-    // TODO revert this if the remote creation fails.
-    if (![[ThorBackend sharedContext] save:&error]) {
-        [NSApp presentError:error];
-        NSLog(@"There was an error! %@", [error.userInfo objectForKey:NSLocalizedDescriptionKey]);
+    // TODO display spinner while waiting.
+    self.wizardController.commitButtonEnabled = NO;
+    
+    FoundryApp *app = nil;
+    Deployment *deployment = nil;
+    RACSubscribable *subscribable;
+    
+    if ([bindingObject isKindOfClass:[Deployment class]]) {
+        deployment = (Deployment *)bindingObject;
+        app = [FoundryApp appWithDeployment:deployment];
+        
+        if (deployment.managedObjectContext)
+            subscribable = [service updateApp:app];
+        else {
+            subscribable = [[self ensureServiceDoesNotHaveAppWithName:app.name] continueWith:[service createApp:app]];
+            [[ThorBackend sharedContext] insertObject:deployment];
+        }
     }
     else {
-        FoundryService *service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
-        
-        FoundryApp *app = [FoundryApp appWithDeployment:deployment];
-        
-        // TODO display spinner while waiting.
-        self.wizardController.commitButtonEnabled = NO;
-        
-        RACSubscribable *subscribable = [[self ensureService:service doesNotHaveAppWithName:deployment.appName] continueWith:[service createApp:app]];
-        
-        self.associatedDisposable = [subscribable subscribeNext: ^ (id n) {
-            NSLog(@"%@", n);
-        } error:^(NSError *error) {
-            [NSApp presentError:error];
-            self.wizardController.commitButtonEnabled = YES;
-        } completed:^{
-            [self.wizardController dismissWithReturnCode:NSOKButton];
-        }];
+        app = (FoundryApp *)bindingObject;
+        subscribable = [service updateApp:app];
     }
+        
+    self.associatedDisposable = [subscribable subscribeNext:^ (id n) {
+        NSLog(@"%@", n);
+    } error:^ (NSError *error) {
+        [NSApp presentError:error];
+        self.wizardController.commitButtonEnabled = YES;
+    } completed:^ {
+        NSError *error = nil;
+        if (![[ThorBackend sharedContext] save:&error]) {
+            [NSApp presentError:error];
+            NSLog(@"There was an error! %@", [error.userInfo objectForKey:NSLocalizedDescriptionKey]);
+        }
+        [self.wizardController dismissWithReturnCode:NSOKButton];
+    }];
 }
 
 - (void)rollbackWizardPanel {
