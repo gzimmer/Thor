@@ -1,16 +1,24 @@
 #import "AppDelegate.h"
 #import "ToolbarTabController.h"
 #import "DeploymentMemoryTransformer.h"
+#import "SourceListController.h"
+#import "TargetController.h"
+#import "AppController.h"
+#import "BreadcrumbController.h"
+#import "ThorCore.h"
+#import "TargetPropertiesController.h"
+#import "NSAlert+Dialogs.h"
 
 @interface AppDelegate ()
 
 @property (nonatomic, strong) ToolbarTabController *toolbarTabController;
+@property (nonatomic, strong) SourceListController *sourceListController;
 
 @end
 
 @implementation AppDelegate
 
-@synthesize toolbarTabController;
+@synthesize toolbarTabController, sourceListController;
 
 + (void)initialize {
     [NSValueTransformer setValueTransformer:[DeploymentMemoryTransformer new] forName:@"DeploymentMemoryTransformer"];
@@ -18,19 +26,79 @@
 
 - (id)init {
     if (self = [super init]) {
-        self.toolbarTabController = [[ToolbarTabController alloc] init];
+        self.sourceListController = [[SourceListController alloc] init];
+        self.sourceListController.controllerForModel = ^ NSViewController *(id m) {
+            NSViewController<BreadcrumbControllerAware> *controller = nil;
+            if ([m isKindOfClass:[Target class]]) {
+                TargetController *targetController = [[TargetController alloc] init];
+                targetController.target = m;
+                controller = targetController;
+            }
+            else if ([m isKindOfClass:[App class]]) {
+                AppController *appController = [[AppController alloc] init];
+                appController.app = m;
+                controller = appController;
+            }
+            
+            if (controller)
+                return [[BreadcrumbController alloc] initWithRootViewController:controller];
+            
+            return nil;
+        };
+        
+        self.sourceListController.deleteModelConfirmation = ^ NSAlert *(id m) {
+            if ([m isKindOfClass:[Target class]])
+                return [NSAlert confirmDeleteTargetDialog];
+            if ([m isKindOfClass:[App class]])
+                return [NSAlert confirmDeleteAppDialog];
+            return nil;
+        };
     }
     return self;
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    window.toolbar = toolbarTabController.toolbar;
-    [view addSubview:toolbarTabController.view];
-    toolbarTabController.view.frame = view.bounds;
+    [view addSubview:sourceListController.view];
+    sourceListController.view.frame = view.bounds;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     
+}
+
+- (void)newApp:(id)sender {
+    App *app = [App appInsertedIntoManagedObjectContext:nil];
+    
+    NSOpenPanel *openPanel = [NSOpenPanel openPanel];
+    openPanel.canChooseDirectories = YES;
+    openPanel.canChooseFiles = NO;
+    openPanel.allowsMultipleSelection = NO;
+    [openPanel beginSheetModalForWindow:window completionHandler:^ void (NSInteger result) {
+        if (result == NSFileHandlingPanelOKButton) {
+            app.localRoot = [[openPanel.URLs objectAtIndex:0] path];
+            app.displayName = [((NSURL *)[NSURL fileURLWithPath:app.localRoot]).pathComponents lastObject];
+            [[ThorBackend sharedContext] insertObject:app];
+            
+            NSError *error = nil;
+            if (![[ThorBackend sharedContext] save:&error]) {
+                [NSApp presentError:error];
+                NSLog(@"There was an error! %@", [error.userInfo objectForKey:NSLocalizedDescriptionKey]);
+            }
+            
+            [sourceListController updateAppsAndTargets];
+        }
+    }];
+}
+
+- (void)newTarget:(id)sender {
+    TargetPropertiesController *targetPropertiesController = [[TargetPropertiesController alloc] init];
+    targetPropertiesController.target = [Target targetInsertedIntoManagedObjectContext:nil];
+    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:targetPropertiesController];
+    targetPropertiesController.title = @"Create Cloud";
+    [wizardController presentModalForWindow:window didEndBlock:^ (NSInteger returnCode) {
+        if (returnCode == NSOKButton)
+            [sourceListController updateAppsAndTargets];
+    }];
 }
 
 @end

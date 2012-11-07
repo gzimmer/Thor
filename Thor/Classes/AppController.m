@@ -1,5 +1,4 @@
 #import "AppController.h"
-#import "AppPropertiesController.h"
 #import "SheetWindow.h"
 #import "DeploymentController.h"
 #import "TargetItemsDataSource.h"
@@ -10,16 +9,12 @@
 #import "WizardController.h"
 #import "AddDeploymentListViewSource.h"
 #import "Sequence.h"
+#import "NSAlert+Dialogs.h"
 
 #define CONFIRM_DELETION_ALERT_CONTEXT @"ConfirmDeletion"
 
-static NSInteger AppPropertiesControllerContext;
-static NSInteger DeploymentPropertiesControllerContext;
-
 @interface AppController ()
 
-@property (nonatomic, strong) AppPropertiesController *appPropertiesController;
-@property (nonatomic, strong) DeploymentPropertiesController *deploymentPropertiesController;
 @property (nonatomic, strong) TargetItemsDataSource *targetItemsDataSource;
 @property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> listSource;
 
@@ -27,7 +22,7 @@ static NSInteger DeploymentPropertiesControllerContext;
 
 @implementation AppController
 
-@synthesize app, deployments, appPropertiesController, deploymentPropertiesController, breadcrumbController, title, appView, targetItemsDataSource, listSource;
+@synthesize app, deployments, breadcrumbController, title, appView, targetItemsDataSource, listSource;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppView" bundle:[NSBundle mainBundle]]) {
@@ -105,27 +100,6 @@ static NSInteger DeploymentPropertiesControllerContext;
     [self.breadcrumbController pushViewController:deploymentController animated:YES];
 }
 
-- (void)editClicked:(id)sender {
-    self.appPropertiesController = [[AppPropertiesController alloc] init];
-    appPropertiesController.editing = YES;
-    appPropertiesController.app = app;
-
-    NSWindow *window = [SheetWindow sheetWindowWithView:appPropertiesController.view];
-    [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:&AppPropertiesControllerContext];
-}
-
-- (void)sheetDidEnd:(NSWindow *)sheet returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
-    if (contextInfo == &AppPropertiesControllerContext) {
-        self.appPropertiesController = nil;
-    }
-    else if (contextInfo == &DeploymentPropertiesControllerContext) {
-        self.deploymentPropertiesController = nil;
-        //self.appView.drawerBar.expanded = NO;
-        [self updateDeployments];
-    }
-    [sheet orderOut:self];
-}
-
 - (void)displayCreateDeploymentDialog {
     __block WizardController *wizard;
     
@@ -135,7 +109,10 @@ static NSInteger DeploymentPropertiesControllerContext;
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
         Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
         
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentControllerWithDeployment:[Deployment deploymentWithApp:app target:target]];
+        Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:nil];
+        deployment.name = app.displayName;
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentControllerWithDeployment:deployment];
+        deploymentController.title = @"Create deployment";
         [wizard pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
     
@@ -143,13 +120,14 @@ static NSInteger DeploymentPropertiesControllerContext;
     wizardItemsController.commitButtonTitle = @"Next";
 
     wizard = [[WizardController alloc] initWithRootViewController:wizardItemsController];
-    NSWindow *window = [SheetWindow sheetWindowWithView:wizard.view];
-    [wizard viewWillAppear];
-    [NSApp beginSheet:window modalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(sheetDidEnd:returnCode:contextInfo:) contextInfo:&DeploymentPropertiesControllerContext];
+    [wizard presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
+        if (returnCode == NSOKButton)
+            [self updateDeployments];
+    }];
 }
 
 - (void)presentConfirmDeletionDialog {
-    NSAlert *alert = [NSAlert alertWithMessageText:@"Are you sure you wish to delete this application?" defaultButton:@"Delete" alternateButton:@"Cancel" otherButton:nil informativeTextWithFormat:@"The application will no longer appear in Thor. It will not be removed from your hard drive or from any cloud."];
+    NSAlert *alert = [NSAlert confirmDeleteAppDialog];
     [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:CONFIRM_DELETION_ALERT_CONTEXT];
 }
 
@@ -173,14 +151,14 @@ static NSInteger DeploymentPropertiesControllerContext;
 }
 
 - (void)pushDeployment:(Deployment *)deployment sender:(NSButton *)button {
-    FoundryService *service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
+    FoundryClient *client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
     
     RACSubscribable *deploy = [[[RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
         NSURL *rootURL = [NSURL fileURLWithPath:deployment.app.localRoot];
         id manifest = CreateSlugManifestFromPath(rootURL);
         NSURL *slug = CreateSlugFromManifest(manifest, rootURL);
         
-        return [[[service postSlug:slug manifest:manifest toAppWithName:deployment.name] subscribeOn:[RACScheduler mainQueueScheduler]] subscribe:subscriber];
+        return [[[client postSlug:slug manifest:manifest toAppWithName:deployment.name] subscribeOn:[RACScheduler mainQueueScheduler]] subscribe:subscriber];
     }] subscribeOn:[RACScheduler backgroundScheduler]] deliverOn:[RACScheduler mainQueueScheduler]];
     
     button.enabled = NO;

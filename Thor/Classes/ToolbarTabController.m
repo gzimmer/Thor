@@ -8,7 +8,6 @@
 #import "TargetController.h"
 #import "TargetPropertiesController.h"
 #import "AppController.h"
-#import "AppPropertiesController.h"
 #import "ViewVisibilityAware.h"
 
 NSString *ToolbarTargetsItemIdentifier = @"ToolbarTargetsItemIdentifier";
@@ -63,7 +62,7 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
         ItemsController *targets = [[ItemsController alloc] init];
         targets.dataSource = [[TargetItemsDataSource alloc] init];
         
-        BreadcrumbItemsController *targetsWrapper = [[BreadcrumbItemsController alloc] initWithItemsController:targets newItemBlock:^ NSViewController * {
+        BreadcrumbItemsController *targetsWrapper = [[BreadcrumbItemsController alloc] initWithItemsController:targets newItemBlock:^ NSViewController * (BreadcrumbItemsController *breadcrumbItemsController) {
             TargetPropertiesController *targetPropertiesController = [[TargetPropertiesController alloc] init];
             targetPropertiesController.target = [Target targetInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
             return targetPropertiesController;
@@ -77,11 +76,9 @@ NSString *ToolbarServicesItemIdentifier = @"ToolbarServicesItemIdentifier";
         ItemsController *apps = [[ItemsController alloc] init];
         apps.dataSource = [[AppItemsDataSource alloc] init];
         
-        BreadcrumbItemsController *appsWrapper = [[BreadcrumbItemsController alloc]initWithItemsController:apps newItemBlock:^ NSViewController * {
-            
-            AppPropertiesController *appPropertiesController = [[AppPropertiesController alloc] init];
-            appPropertiesController.app = [App appInsertedIntoManagedObjectContext:[ThorBackend sharedContext]];
-            return appPropertiesController;
+        BreadcrumbItemsController *appsWrapper = [[BreadcrumbItemsController alloc] initWithItemsController:apps newItemBlock:^ NSViewController * (BreadcrumbItemsController *breadcrumbItemsController) {
+            //[((id)[NSApplication sharedApplication].delegate) newApp:nil];
+            return nil;
         } selectionBlock:^(BreadcrumbItemsController *breadcrumbItemsController, id item) {
             AppController *appController = [[AppController alloc] init];
             appController.app = (App *)item;

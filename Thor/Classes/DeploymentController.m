@@ -13,7 +13,7 @@
 
 @interface DeploymentController ()
 
-@property (nonatomic, strong) FoundryService *service;
+@property (nonatomic, strong) FoundryClient *client;
 @property (nonatomic, copy) NSString *appName;
 @property (nonatomic, strong) DeploymentPropertiesController *deploymentPropertiesController;
 
@@ -23,7 +23,7 @@ static NSArray *instanceColumns = nil;
 
 @implementation DeploymentController
 
-@synthesize service, deployment, app, appName, title, deploymentView, breadcrumbController, instanceStats, deploymentPropertiesController;
+@synthesize client, deployment, app, appName, title, deploymentView, breadcrumbController, instanceStats, deploymentPropertiesController;
 
 + (void)initialize {
     instanceColumns = @[@"ID", @"Host name", @"CPU", @"Memory", @"Disk", @"Uptime"];
@@ -34,7 +34,7 @@ static NSArray *instanceColumns = nil;
         self.title = lAppName;
         self.appName = lAppName;
         self.deployment = leDeployment;
-        self.service = [[FoundryService alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
+        self.client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
     }
     return self;
 }
@@ -51,10 +51,10 @@ static NSArray *instanceColumns = nil;
     NSError *error = nil;
     
     NSArray *subscribables = @[
-    [[service getStatsForAppWithName:appName] doNext:^(id x) {
+    [[client getStatsForAppWithName:appName] doNext:^(id x) {
         self.instanceStats = x;
     }],
-    [[service getAppWithName:appName] doNext:^(id x) {
+    [[client getAppWithName:appName] doNext:^(id x) {
         self.app = x;
     }]];
     
@@ -80,6 +80,13 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)awakeFromNib {
+    deploymentView.toolbarView.startButton.target = self;
+    deploymentView.toolbarView.startButton.action = @selector(startClicked:);
+    deploymentView.toolbarView.stopButton.target = self;
+    deploymentView.toolbarView.stopButton.action = @selector(stopClicked:);
+    deploymentView.toolbarView.restartButton.target = self;
+    deploymentView.toolbarView.restartButton.action = @selector(restartClicked:);
+    
     [self updateAppAndStatsAfterSubscribable:nil];
 }
 
@@ -108,7 +115,7 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)recreateDeployment {
-    RACSubscribable *createApp = [service createApp:[FoundryApp appWithDeployment:deployment]];
+    RACSubscribable *createApp = [client createApp:[FoundryApp appWithDeployment:deployment]];
     [self updateAppAndStatsAfterSubscribable:createApp];
 }
 
@@ -131,7 +138,7 @@ static NSArray *instanceColumns = nil;
     }
     else if ([contextString isEqual:CONFIRM_DELETION_ALERT_CONTEXT]) {
         if (returnCode == NSAlertDefaultReturn) {
-            self.associatedDisposable = [[service deleteAppWithName:self.appName] subscribeError:^(NSError *error) {
+            self.associatedDisposable = [[client deleteAppWithName:self.appName] subscribeError:^(NSError *error) {
                 [NSApp presentError:error];
             } completed:^{
                 if (deployment)
@@ -204,7 +211,7 @@ static NSArray *instanceColumns = nil;
     if (deployment)
         self.deploymentPropertiesController = [DeploymentPropertiesController deploymentControllerWithDeployment:deployment];
     else
-        self.deploymentPropertiesController = [DeploymentPropertiesController deploymentControllerWithApp:app service:service];
+        self.deploymentPropertiesController = [DeploymentPropertiesController deploymentControllerWithApp:app client:client];
     
     deploymentPropertiesController.title = @"Update deployment";
     
@@ -222,6 +229,26 @@ static NSArray *instanceColumns = nil;
 
 - (IBAction)deleteClicked:(id)sender {
     [self presentConfirmDeletionDialog];
+}
+
+- (RACSubscribable *)updateWithState:(FoundryAppState)state {
+    return [[client getAppWithName:app.name] continueAfter:^RACSubscribable *(id x) {
+        FoundryApp *latestApp = (FoundryApp *)x;
+        latestApp.state = state;
+        return [client updateApp:latestApp];
+    }];
+}
+
+- (void)startClicked:(id)sender {
+    [self updateAppAndStatsAfterSubscribable:[self updateWithState:FoundryAppStateStarted]];
+}
+
+- (void)stopClicked:(id)sender {
+    [self updateAppAndStatsAfterSubscribable:[self updateWithState:FoundryAppStateStopped]];
+}
+
+- (void)restartClicked:(id)sender {
+    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStopped] continueWith:[self updateWithState:FoundryAppStateStarted]]];
 }
 
 @end

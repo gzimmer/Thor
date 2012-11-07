@@ -10,6 +10,8 @@
 		410207D3161A74480077BCCA /* Label.m in Sources */ = {isa = PBXBuildFile; fileRef = 410207D2161A74470077BCCA /* Label.m */; };
 		4104099D160D2CE000AF93AF /* WizardController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4104099C160D2CE000AF93AF /* WizardController.m */; };
 		410409A2160D350C00AF93AF /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 410409A1160D350C00AF93AF /* QuartzCore.framework */; };
+		4114FFB61649A8DF00B4D3DB /* audiobooks.png in Resources */ = {isa = PBXBuildFile; fileRef = 4114FFB51649A8DF00B4D3DB /* audiobooks.png */; };
+		4114FFB91649FD2400B4D3DB /* NSAlert+Dialogs.m in Sources */ = {isa = PBXBuildFile; fileRef = 4114FFB81649FD2400B4D3DB /* NSAlert+Dialogs.m */; };
 		411FCF8916409483000B1841 /* Deployment+CreateFromAppAndTarget.h in Headers */ = {isa = PBXBuildFile; fileRef = 411FCF871640947F000B1841 /* Deployment+CreateFromAppAndTarget.h */; };
 		411FCF8A16409483000B1841 /* Deployment+CreateFromAppAndTarget.m in Sources */ = {isa = PBXBuildFile; fileRef = 411FCF8816409481000B1841 /* Deployment+CreateFromAppAndTarget.m */; };
 		4131290A15B61264005F6D54 /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4131290915B61264005F6D54 /* CoreData.framework */; };
@@ -20,8 +22,8 @@
 		4135F59C15D33BEE0054D961 /* CloudIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 4135F59715D33BEE0054D961 /* CloudIcon.png */; };
 		4135F59D15D33BEE0054D961 /* CloudIconSelected.png in Resources */ = {isa = PBXBuildFile; fileRef = 4135F59815D33BEE0054D961 /* CloudIconSelected.png */; };
 		4135F5A215D34D520054D961 /* CollectionItemView.m in Sources */ = {isa = PBXBuildFile; fileRef = 4135F5A115D34D520054D961 /* CollectionItemView.m */; };
-		413912F315E5D0A900DB464E /* FoundryService.h in Headers */ = {isa = PBXBuildFile; fileRef = 413912F115E5D0A900DB464E /* FoundryService.h */; };
-		413912F415E5D0A900DB464E /* FoundryService.m in Sources */ = {isa = PBXBuildFile; fileRef = 413912F215E5D0A900DB464E /* FoundryService.m */; };
+		413912F315E5D0A900DB464E /* FoundryClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 413912F115E5D0A900DB464E /* FoundryClient.h */; };
+		413912F415E5D0A900DB464E /* FoundryClient.m in Sources */ = {isa = PBXBuildFile; fileRef = 413912F215E5D0A900DB464E /* FoundryClient.m */; };
 		413912F815E5D98800DB464E /* ServicesController.m in Sources */ = {isa = PBXBuildFile; fileRef = 413912F715E5D98800DB464E /* ServicesController.m */; };
 		413912FA15E5DA1E00DB464E /* ServicesView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 413912F915E5DA1E00DB464E /* ServicesView.xib */; };
 		413912FC15E5DA5A00DB464E /* ServicesToolbarIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 413912FB15E5DA5A00DB464E /* ServicesToolbarIcon.png */; };
@@ -84,8 +86,6 @@
 		41B54802164327A900C5C68F /* DeploymentStart.png in Resources */ = {isa = PBXBuildFile; fileRef = 41B547FF164327A900C5C68F /* DeploymentStart.png */; };
 		41B54803164327A900C5C68F /* DeploymentStop.png in Resources */ = {isa = PBXBuildFile; fileRef = 41B54800164327A900C5C68F /* DeploymentStop.png */; };
 		41B9233115D07A280004D167 /* AppItemsDataSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B9233015D07A280004D167 /* AppItemsDataSource.m */; };
-		41B9233715D085480004D167 /* AppPropertiesView.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B9233615D085480004D167 /* AppPropertiesView.m */; };
-		41B9233A15D085880004D167 /* AppPropertiesController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B9233915D085870004D167 /* AppPropertiesController.m */; };
 		41B9238115D18E600004D167 /* AppController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B9238015D18E600004D167 /* AppController.m */; };
 		41B9238415D190A00004D167 /* AppView.m in Sources */ = {isa = PBXBuildFile; fileRef = 41B9238315D1909F0004D167 /* AppView.m */; };
 		41C59C1415CAFE4C00123ABF /* ReactiveCocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41C59C0E15CAFD8300123ABF /* ReactiveCocoa.framework */; };
@@ -122,9 +122,11 @@
 		41FA11D015E433BB0079FD30 /* ItemsView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FA11CF15E433BB0079FD30 /* ItemsView.xib */; };
 		41FA11D215E433C70079FD30 /* TargetPropertiesView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FA11D115E433C70079FD30 /* TargetPropertiesView.xib */; };
 		41FA11D415E433D50079FD30 /* AppCollectionItemView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FA11D315E433D50079FD30 /* AppCollectionItemView.xib */; };
-		41FA11D615E433E00079FD30 /* AppPropertiesView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FA11D515E433E00079FD30 /* AppPropertiesView.xib */; };
 		41FA11D815E433EB0079FD30 /* AppView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FA11D715E433EB0079FD30 /* AppView.xib */; };
 		41FA11DB15E436570079FD30 /* BoxGroupView.m in Sources */ = {isa = PBXBuildFile; fileRef = 41FA11DA15E436570079FD30 /* BoxGroupView.m */; };
+		41FC50D91648755D00C63E43 /* SourceListController.m in Sources */ = {isa = PBXBuildFile; fileRef = 41FC50D81648755D00C63E43 /* SourceListController.m */; };
+		41FC50DB1648759900C63E43 /* SourceListView.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41FC50DA1648759900C63E43 /* SourceListView.xib */; };
+		41FC50F016488DF000C63E43 /* PXSourceList.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41FC50ED16488DC100C63E43 /* PXSourceList.framework */; };
 		F32F9744154908CB002CCF27 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F32F9743154908CB002CCF27 /* Cocoa.framework */; };
 		F32F974E154908CB002CCF27 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F32F974C154908CB002CCF27 /* InfoPlist.strings */; };
 		F32F9750154908CB002CCF27 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = F32F974F154908CB002CCF27 /* main.m */; };
@@ -284,6 +286,27 @@
 			remoteGlobalIDString = 41F9029815AF592A00550870;
 			remoteInfo = ThorCore;
 		};
+		41FC50EA16488DC100C63E43 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 8D1107320486CEB800E47090;
+			remoteInfo = PXSourceListDemo;
+		};
+		41FC50EC16488DC100C63E43 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 4CC5EA2A12DC81ED001F282E;
+			remoteInfo = PXSourceList;
+		};
+		41FC50EE16488DDB00C63E43 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 4CC5EA2912DC81ED001F282E;
+			remoteInfo = PXSourceList;
+		};
 		F32F9767154908CC002CCF27 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F32F9736154908CB002CCF27 /* Project object */;
@@ -300,6 +323,9 @@
 		4104099C160D2CE000AF93AF /* WizardController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = WizardController.m; path = Classes/WizardController.m; sourceTree = "<group>"; };
 		410409A1160D350C00AF93AF /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		410409A41610E77800AF93AF /* ViewVisibilityAware.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ViewVisibilityAware.h; path = Classes/ViewVisibilityAware.h; sourceTree = "<group>"; };
+		4114FFB51649A8DF00B4D3DB /* audiobooks.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = audiobooks.png; path = Resources/audiobooks.png; sourceTree = "<group>"; };
+		4114FFB71649FD2400B4D3DB /* NSAlert+Dialogs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "NSAlert+Dialogs.h"; path = "Classes/NSAlert+Dialogs.h"; sourceTree = "<group>"; };
+		4114FFB81649FD2400B4D3DB /* NSAlert+Dialogs.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "NSAlert+Dialogs.m"; path = "Classes/NSAlert+Dialogs.m"; sourceTree = "<group>"; };
 		411FCF871640947F000B1841 /* Deployment+CreateFromAppAndTarget.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "Deployment+CreateFromAppAndTarget.h"; sourceTree = "<group>"; };
 		411FCF8816409481000B1841 /* Deployment+CreateFromAppAndTarget.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "Deployment+CreateFromAppAndTarget.m"; sourceTree = "<group>"; };
 		4131290915B61264005F6D54 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = /System/Library/Frameworks/CoreData.framework; sourceTree = "<absolute>"; };
@@ -310,8 +336,8 @@
 		4135F59815D33BEE0054D961 /* CloudIconSelected.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = CloudIconSelected.png; path = Resources/CloudIconSelected.png; sourceTree = "<group>"; };
 		4135F5A015D34D520054D961 /* CollectionItemView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CollectionItemView.h; path = Classes/CollectionItemView.h; sourceTree = "<group>"; };
 		4135F5A115D34D520054D961 /* CollectionItemView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = CollectionItemView.m; path = Classes/CollectionItemView.m; sourceTree = "<group>"; };
-		413912F115E5D0A900DB464E /* FoundryService.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FoundryService.h; sourceTree = "<group>"; };
-		413912F215E5D0A900DB464E /* FoundryService.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FoundryService.m; sourceTree = "<group>"; };
+		413912F115E5D0A900DB464E /* FoundryClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FoundryClient.h; sourceTree = "<group>"; };
+		413912F215E5D0A900DB464E /* FoundryClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FoundryClient.m; sourceTree = "<group>"; };
 		413912F615E5D98800DB464E /* ServicesController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ServicesController.h; path = Classes/ServicesController.h; sourceTree = "<group>"; };
 		413912F715E5D98800DB464E /* ServicesController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = ServicesController.m; path = Classes/ServicesController.m; sourceTree = "<group>"; };
 		413912F915E5DA1E00DB464E /* ServicesView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = ServicesView.xib; path = Resources/ServicesView.xib; sourceTree = "<group>"; };
@@ -398,10 +424,6 @@
 		41B54800164327A900C5C68F /* DeploymentStop.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = DeploymentStop.png; path = Resources/DeploymentStop.png; sourceTree = "<group>"; };
 		41B9232F15D07A280004D167 /* AppItemsDataSource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppItemsDataSource.h; path = Classes/AppItemsDataSource.h; sourceTree = "<group>"; };
 		41B9233015D07A280004D167 /* AppItemsDataSource.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AppItemsDataSource.m; path = Classes/AppItemsDataSource.m; sourceTree = "<group>"; };
-		41B9233515D085480004D167 /* AppPropertiesView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppPropertiesView.h; path = Classes/AppPropertiesView.h; sourceTree = "<group>"; };
-		41B9233615D085480004D167 /* AppPropertiesView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AppPropertiesView.m; path = Classes/AppPropertiesView.m; sourceTree = "<group>"; };
-		41B9233815D085870004D167 /* AppPropertiesController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppPropertiesController.h; path = Classes/AppPropertiesController.h; sourceTree = "<group>"; };
-		41B9233915D085870004D167 /* AppPropertiesController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AppPropertiesController.m; path = Classes/AppPropertiesController.m; sourceTree = "<group>"; };
 		41B9237F15D18E600004D167 /* AppController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppController.h; path = Classes/AppController.h; sourceTree = "<group>"; };
 		41B9238015D18E600004D167 /* AppController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AppController.m; path = Classes/AppController.m; sourceTree = "<group>"; };
 		41B9238215D1909F0004D167 /* AppView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppView.h; path = Classes/AppView.h; sourceTree = "<group>"; };
@@ -457,10 +479,13 @@
 		41FA11CF15E433BB0079FD30 /* ItemsView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = ItemsView.xib; path = Resources/ItemsView.xib; sourceTree = "<group>"; };
 		41FA11D115E433C70079FD30 /* TargetPropertiesView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = TargetPropertiesView.xib; path = Resources/TargetPropertiesView.xib; sourceTree = "<group>"; };
 		41FA11D315E433D50079FD30 /* AppCollectionItemView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = AppCollectionItemView.xib; path = Resources/AppCollectionItemView.xib; sourceTree = "<group>"; };
-		41FA11D515E433E00079FD30 /* AppPropertiesView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = AppPropertiesView.xib; path = Resources/AppPropertiesView.xib; sourceTree = "<group>"; };
 		41FA11D715E433EB0079FD30 /* AppView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = AppView.xib; path = Resources/AppView.xib; sourceTree = "<group>"; };
 		41FA11D915E436560079FD30 /* BoxGroupView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BoxGroupView.h; path = Classes/BoxGroupView.h; sourceTree = "<group>"; };
 		41FA11DA15E436570079FD30 /* BoxGroupView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = BoxGroupView.m; path = Classes/BoxGroupView.m; sourceTree = "<group>"; };
+		41FC50D71648755D00C63E43 /* SourceListController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SourceListController.h; path = Classes/SourceListController.h; sourceTree = "<group>"; };
+		41FC50D81648755D00C63E43 /* SourceListController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = SourceListController.m; path = Classes/SourceListController.m; sourceTree = "<group>"; };
+		41FC50DA1648759900C63E43 /* SourceListView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; name = SourceListView.xib; path = Resources/SourceListView.xib; sourceTree = "<group>"; };
+		41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = PXSourceList.xcodeproj; path = PXSourceList/PXSourceList.xcodeproj; sourceTree = "<group>"; };
 		F32F973F154908CB002CCF27 /* Thor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Thor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F32F9743154908CB002CCF27 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		F32F9746154908CB002CCF27 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
@@ -508,6 +533,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41FC50F016488DF000C63E43 /* PXSourceList.framework in Frameworks */,
 				410409A2160D350C00AF93AF /* QuartzCore.framework in Frameworks */,
 				41B20A3315E860C900E7ED8B /* SBJson.framework in Frameworks */,
 				41C59C1415CAFE4C00123ABF /* ReactiveCocoa.framework in Frameworks */,
@@ -538,6 +564,7 @@
 		412DA0F915AB86EF00087F6B /* Navigation Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				41FC50DC16488ABF00C63E43 /* SourceList */,
 				417FEFA415ACBFE300E64503 /* ToolbarTabController.h */,
 				417FEFA515ACBFE300E64503 /* ToolbarTabController.m */,
 				417FEFB015ACD93F00E64503 /* BreadcrumbController.h */,
@@ -592,6 +619,7 @@
 		414779E615C0B1AD00B733EF /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				4114FFB51649A8DF00B4D3DB /* audiobooks.png */,
 				41B547FE164327A900C5C68F /* DeploymentRestart.png */,
 				41B547FF164327A900C5C68F /* DeploymentStart.png */,
 				41B54800164327A900C5C68F /* DeploymentStop.png */,
@@ -647,6 +675,8 @@
 				410207D2161A74470077BCCA /* Label.m */,
 				41B547ED1641A44E00C5C68F /* DeploymentToolbarView.h */,
 				41B547EE1641A44E00C5C68F /* DeploymentToolbarView.m */,
+				4114FFB71649FD2400B4D3DB /* NSAlert+Dialogs.h */,
+				4114FFB81649FD2400B4D3DB /* NSAlert+Dialogs.m */,
 			);
 			name = "Custom Views";
 			sourceTree = "<group>";
@@ -665,6 +695,8 @@
 		416567B215DAE59700EF93DF /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				413C2E22160009CC00C80B4C /* SHA1.h */,
+				413C2E23160009CC00C80B4C /* SHA1.m */,
 				41B20A2F15E860A200E7ED8B /* NSObject+JSONDataRepresentation.h */,
 				41B20A3015E860A200E7ED8B /* NSObject+JSONDataRepresentation.m */,
 				414E185B15C226DF007C9508 /* Sequence.h */,
@@ -697,7 +729,6 @@
 				41FA11D315E433D50079FD30 /* AppCollectionItemView.xib */,
 				41B9232F15D07A280004D167 /* AppItemsDataSource.h */,
 				41B9233015D07A280004D167 /* AppItemsDataSource.m */,
-				41B9233215D07D0F0004D167 /* App Properties Dialog */,
 				41B9233B15D187B00004D167 /* App View */,
 			);
 			name = Apps;
@@ -717,18 +748,6 @@
 				414E185115C0B55F007C9508 /* CollectionView.m */,
 			);
 			name = "Items View";
-			sourceTree = "<group>";
-		};
-		41B9233215D07D0F0004D167 /* App Properties Dialog */ = {
-			isa = PBXGroup;
-			children = (
-				41FA11D515E433E00079FD30 /* AppPropertiesView.xib */,
-				41B9233515D085480004D167 /* AppPropertiesView.h */,
-				41B9233615D085480004D167 /* AppPropertiesView.m */,
-				41B9233815D085870004D167 /* AppPropertiesController.h */,
-				41B9233915D085870004D167 /* AppPropertiesController.m */,
-			);
-			name = "App Properties Dialog";
 			sourceTree = "<group>";
 		};
 		41B9233B15D187B00004D167 /* App View */ = {
@@ -816,8 +835,8 @@
 			isa = PBXGroup;
 			children = (
 				41C7FE6915B77B18006B3468 /* ThorCore.h */,
-				413912F115E5D0A900DB464E /* FoundryService.h */,
-				413912F215E5D0A900DB464E /* FoundryService.m */,
+				413912F115E5D0A900DB464E /* FoundryClient.h */,
+				413912F215E5D0A900DB464E /* FoundryClient.m */,
 				41F9029F15AF592A00550870 /* ThorBackend.h */,
 				41F902A015AF592A00550870 /* ThorBackend.m */,
 				41EE94B515F03D4100A45951 /* FoundryEndpoint+CreateFromTarget.h */,
@@ -828,8 +847,6 @@
 				411FCF8816409481000B1841 /* Deployment+CreateFromAppAndTarget.m */,
 				416567B215DAE59700EF93DF /* Utilities */,
 				41F9029D15AF592A00550870 /* Supporting Files */,
-				413C2E22160009CC00C80B4C /* SHA1.h */,
-				413C2E23160009CC00C80B4C /* SHA1.m */,
 			);
 			path = ThorCore;
 			sourceTree = "<group>";
@@ -879,10 +896,28 @@
 			name = Deployments;
 			sourceTree = "<group>";
 		};
+		41FC50DC16488ABF00C63E43 /* SourceList */ = {
+			isa = PBXGroup;
+			children = (
+				41FC50DA1648759900C63E43 /* SourceListView.xib */,
+				41FC50D71648755D00C63E43 /* SourceListController.h */,
+				41FC50D81648755D00C63E43 /* SourceListController.m */,
+			);
+			name = SourceList;
+			sourceTree = "<group>";
+		};
+		41FC50E216488DC100C63E43 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41FC50EB16488DC100C63E43 /* PXSourceList.app */,
+				41FC50ED16488DC100C63E43 /* PXSourceList.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		F32F9734154908CB002CCF27 = {
 			isa = PBXGroup;
 			children = (
-				410409A1160D350C00AF93AF /* QuartzCore.framework */,
 				419E73C116068B6F009FA6D3 /* icon.icns */,
 				F32F9749154908CB002CCF27 /* Thor */,
 				F32F9769154908CC002CCF27 /* ThorTests */,
@@ -890,6 +925,7 @@
 				41F902AF15AF592A00550870 /* ThorCoreTests */,
 				F32F9742154908CB002CCF27 /* Frameworks */,
 				F32F9740154908CB002CCF27 /* Products */,
+				41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */,
 				41EE94CC15F143B900A45951 /* Specta.xcodeproj */,
 				41EE94BA15F143A000A45951 /* Expecta.xcodeproj */,
 				4165679515DAE39100EF93DF /* SBJson.xcodeproj */,
@@ -914,6 +950,7 @@
 				413C2E20160006D600C80B4C /* libcommonCrypto.dylib */,
 				41EE94E615F15EFC00A45951 /* libExpecta.a */,
 				41EE94E715F15EFD00A45951 /* libSpecta.a */,
+				410409A1160D350C00AF93AF /* QuartzCore.framework */,
 				4131290915B61264005F6D54 /* CoreData.framework */,
 				F32F9743154908CB002CCF27 /* Cocoa.framework */,
 				F32F9764154908CC002CCF27 /* SenTestingKit.framework */,
@@ -985,7 +1022,7 @@
 				414E185D15C226DF007C9508 /* Sequence.h in Headers */,
 				416567AC15DAE46D00EF93DF /* SMWebRequest.h in Headers */,
 				416567B015DAE56D00EF93DF /* SMWebRequest+RAC.h in Headers */,
-				413912F315E5D0A900DB464E /* FoundryService.h in Headers */,
+				413912F315E5D0A900DB464E /* FoundryClient.h in Headers */,
 				41B20A3115E860A200E7ED8B /* NSObject+JSONDataRepresentation.h in Headers */,
 				41EE94B715F03D4200A45951 /* FoundryEndpoint+CreateFromTarget.h in Headers */,
 				413C2E24160009CD00C80B4C /* SHA1.h in Headers */,
@@ -1048,6 +1085,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				41FC50EF16488DDB00C63E43 /* PBXTargetDependency */,
 				41C59C1615CB008B00123ABF /* PBXTargetDependency */,
 				41F902D815B5EFF500550870 /* PBXTargetDependency */,
 			);
@@ -1099,6 +1137,10 @@
 				{
 					ProductGroup = 41EE94BB15F143A000A45951 /* Products */;
 					ProjectRef = 41EE94BA15F143A000A45951 /* Expecta.xcodeproj */;
+				},
+				{
+					ProductGroup = 41FC50E216488DC100C63E43 /* Products */;
+					ProjectRef = 41FC50E116488DC100C63E43 /* PXSourceList.xcodeproj */;
 				},
 				{
 					ProductGroup = 41C59C0315CAFD8200123ABF /* Products */;
@@ -1229,6 +1271,20 @@
 			remoteRef = 41EE94DC15F143BA00A45951 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
+		41FC50EB16488DC100C63E43 /* PXSourceList.app */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.application;
+			path = PXSourceList.app;
+			remoteRef = 41FC50EA16488DC100C63E43 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		41FC50ED16488DC100C63E43 /* PXSourceList.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = PXSourceList.framework;
+			remoteRef = 41FC50EC16488DC100C63E43 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -1261,7 +1317,6 @@
 				41FA11D015E433BB0079FD30 /* ItemsView.xib in Resources */,
 				41FA11D215E433C70079FD30 /* TargetPropertiesView.xib in Resources */,
 				41FA11D415E433D50079FD30 /* AppCollectionItemView.xib in Resources */,
-				41FA11D615E433E00079FD30 /* AppPropertiesView.xib in Resources */,
 				41FA11D815E433EB0079FD30 /* AppView.xib in Resources */,
 				413912FA15E5DA1E00DB464E /* ServicesView.xib in Resources */,
 				413912FC15E5DA5A00DB464E /* ServicesToolbarIcon.png in Resources */,
@@ -1280,6 +1335,8 @@
 				41B54801164327A900C5C68F /* DeploymentRestart.png in Resources */,
 				41B54802164327A900C5C68F /* DeploymentStart.png in Resources */,
 				41B54803164327A900C5C68F /* DeploymentStop.png in Resources */,
+				41FC50DB1648759900C63E43 /* SourceListView.xib in Resources */,
+				4114FFB61649A8DF00B4D3DB /* audiobooks.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1331,7 +1388,7 @@
 				414E185E15C226DF007C9508 /* Sequence.m in Sources */,
 				416567AD15DAE46D00EF93DF /* SMWebRequest.m in Sources */,
 				416567B115DAE56D00EF93DF /* SMWebRequest+RAC.m in Sources */,
-				413912F415E5D0A900DB464E /* FoundryService.m in Sources */,
+				413912F415E5D0A900DB464E /* FoundryClient.m in Sources */,
 				41B20A3215E860A200E7ED8B /* NSObject+JSONDataRepresentation.m in Sources */,
 				41EE94B815F03D4200A45951 /* FoundryEndpoint+CreateFromTarget.m in Sources */,
 				413C2E25160009CD00C80B4C /* SHA1.m in Sources */,
@@ -1371,8 +1428,6 @@
 				41D286D115C87B9200206E3A /* SheetWindow.m in Sources */,
 				41C59C2015CB057400123ABF /* NSObject+AssociateDisposable.m in Sources */,
 				41B9233115D07A280004D167 /* AppItemsDataSource.m in Sources */,
-				41B9233715D085480004D167 /* AppPropertiesView.m in Sources */,
-				41B9233A15D085880004D167 /* AppPropertiesController.m in Sources */,
 				41B9238115D18E600004D167 /* AppController.m in Sources */,
 				41B9238415D190A00004D167 /* AppView.m in Sources */,
 				4135F5A215D34D520054D961 /* CollectionItemView.m in Sources */,
@@ -1401,6 +1456,8 @@
 				414AC843162C8164005D8423 /* FoundryAppStatusTransformer.m in Sources */,
 				414AC846162C8C9B005D8423 /* FileSizeInMBTransformer.m in Sources */,
 				41B547EF1641A44E00C5C68F /* DeploymentToolbarView.m in Sources */,
+				41FC50D91648755D00C63E43 /* SourceListController.m in Sources */,
+				4114FFB91649FD2400B4D3DB /* NSAlert+Dialogs.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1444,6 +1501,11 @@
 			isa = PBXTargetDependency;
 			target = 41F9029815AF592A00550870 /* ThorCore */;
 			targetProxy = 41F902D715B5EFF500550870 /* PBXContainerItemProxy */;
+		};
+		41FC50EF16488DDB00C63E43 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = PXSourceList;
+			targetProxy = 41FC50EE16488DDB00C63E43 /* PBXContainerItemProxy */;
 		};
 		F32F9768154908CC002CCF27 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

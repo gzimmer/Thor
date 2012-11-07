@@ -59,7 +59,13 @@ NSURL *CreateSlugFromManifest(NSArray *manifest, NSURL *rootURL);
 
 NSString *DetectFrameworkFromPath(NSURL *rootURL);
 
-@protocol FoundryService <NSObject>
+@interface FoundryService : NSObject
+
+@property (nonatomic, copy) NSString *name, *vendor, *version;
+
+@end
+
+@protocol FoundryClient <NSObject>
 
 - (RACSubscribable *)getApps; // NSArray of FoundryApp
 - (RACSubscribable *)getAppWithName:(NSString *)name; // FoundryApp
@@ -70,9 +76,13 @@ NSString *DetectFrameworkFromPath(NSURL *rootURL);
 - (RACSubscribable *)deleteAppWithName:(NSString *)name;
 - (RACSubscribable *)postSlug:(NSURL *)slug manifest:(NSArray *)manifest toAppWithName:(NSString *)name;
 
+- (RACSubscribable *)getServices; // NSArray of FoundryService
+- (RACSubscribable *)createService:(FoundryService *)service;
+- (RACSubscribable *)deleteServiceWithName:(NSString *)name;
+
 @end
 
-@interface FoundryService : NSObject <FoundryService>
+@interface FoundryClient : NSObject <FoundryClient>
 
 @property (nonatomic, strong) FoundryEndpoint *endpoint;
 
