@@ -1119,7 +1119,7 @@
 		F32F9736154908CB002CCF27 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				CLASSPREFIX = t3oss;
+				CLASSPREFIX = ironFoundry;
 				LastUpgradeCheck = 0440;
 				ORGANIZATIONNAME = "Iron Foundry";
 			};

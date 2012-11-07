@@ -4,13 +4,16 @@ Project Thor Overview
 The Thor Project is setup to deliver a high quality, solid user experience, and resilient user interface for Cloud Foundry (w/ Iron Foundry Extension Support) PaaS enabled systems to the Apple OS-X System. This project, to ensure a solid user experience utilizes the Cocoa Framework.
 
 _**Please fork and contribute back.**_ If you'd like to contact the team working on Thor so we can discuss our current road map, please feel free to contact me [Adron Hall](https://github.com/Adron/) via Twitter [@Adron](https://twitter.com/#!/adron) or e-mail me <adron.hall@tier3.com>. You can also of course message me directly via Github.
-Technology & Tools Used
+License
 ---
-The tools used to create, build and maintain this project include Xcode. So far there is no other peripheral software used at this time, of course, that is always subject to change.
-Technical Description
----
-This application uses the [VMC CLI](https://github.com/cloudfoundry/vmc) or  [Iron Foundry VMC CLI for .NET](https://github.com/IronFoundry/vmc) as an underlying tool. The VMC tool acts as an abstraction layer to protect from changes that are made to the underlying cloud controller and other Cloud Foundry architecture.
-Workflow
+Copyright 2012 Iron Foundry Organization
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
+
+[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+   Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
 ---
 **What's Being Worked On?**
 
