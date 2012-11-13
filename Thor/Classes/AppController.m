@@ -7,7 +7,7 @@
 #import "DeploymentCell.h"
 #import "NoResultsListViewDataSource.h"
 #import "WizardController.h"
-#import "AddDeploymentListViewSource.h"
+#import "AddItemListViewSource.h"
 #import "Sequence.h"
 #import "NSAlert+Dialogs.h"
 
@@ -60,16 +60,14 @@
 }
 
 - (void)awakeFromNib {
-    
     NoResultsListViewSource *noResultsSource = [[NoResultsListViewSource alloc] init];
     noResultsSource.source = self;
-    AddDeploymentListViewSource *addDeploymentSource = [[AddDeploymentListViewSource alloc] init];
+    AddItemListViewSource *addDeploymentSource = [[AddItemListViewSource alloc] initWithTitle:@"New deployment…"];
     addDeploymentSource.source = noResultsSource;
     addDeploymentSource.action = ^ { [self displayCreateDeploymentDialog]; };
     self.listSource = addDeploymentSource;
     self.appView.deploymentsList.dataSource = listSource;
     self.appView.deploymentsList.delegate = listSource;
-
 }
 
 - (void)viewWillAppear {
@@ -109,10 +107,9 @@
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
         Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
         
-        Deployment *deployment = [Deployment deploymentInsertedIntoManagedObjectContext:nil];
-        deployment.name = app.displayName;
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentControllerWithDeployment:deployment];
-        deploymentController.title = @"Create deployment";
+        Deployment *deployment = [Deployment deploymentWithApp:app target:target];
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentPropertiesControllerWithDeployment:deployment create:YES];
+        deploymentController.title = @"Create Deployment";
         [wizard pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
     

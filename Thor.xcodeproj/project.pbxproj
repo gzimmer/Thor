@@ -12,6 +12,7 @@
 		410409A2160D350C00AF93AF /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 410409A1160D350C00AF93AF /* QuartzCore.framework */; };
 		4114FFB61649A8DF00B4D3DB /* audiobooks.png in Resources */ = {isa = PBXBuildFile; fileRef = 4114FFB51649A8DF00B4D3DB /* audiobooks.png */; };
 		4114FFB91649FD2400B4D3DB /* NSAlert+Dialogs.m in Sources */ = {isa = PBXBuildFile; fileRef = 4114FFB81649FD2400B4D3DB /* NSAlert+Dialogs.m */; };
+		4116019F164C840C00EDA836 /* ServiceCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 4116019E164C840B00EDA836 /* ServiceCell.m */; };
 		411FCF8916409483000B1841 /* Deployment+CreateFromAppAndTarget.h in Headers */ = {isa = PBXBuildFile; fileRef = 411FCF871640947F000B1841 /* Deployment+CreateFromAppAndTarget.h */; };
 		411FCF8A16409483000B1841 /* Deployment+CreateFromAppAndTarget.m in Sources */ = {isa = PBXBuildFile; fileRef = 411FCF8816409481000B1841 /* Deployment+CreateFromAppAndTarget.m */; };
 		4131290A15B61264005F6D54 /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4131290915B61264005F6D54 /* CoreData.framework */; };
@@ -45,7 +46,7 @@
 		414E185A15C1BC0E007C9508 /* GridView.m in Sources */ = {isa = PBXBuildFile; fileRef = 414E185915C1BC0E007C9508 /* GridView.m */; };
 		414E185D15C226DF007C9508 /* Sequence.h in Headers */ = {isa = PBXBuildFile; fileRef = 414E185B15C226DF007C9508 /* Sequence.h */; };
 		414E185E15C226DF007C9508 /* Sequence.m in Sources */ = {isa = PBXBuildFile; fileRef = 414E185C15C226DF007C9508 /* Sequence.m */; };
-		414FBC4416164EFD0021E1B2 /* AddDeploymentListViewSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 414FBC4316164EFD0021E1B2 /* AddDeploymentListViewSource.m */; };
+		414FBC4416164EFD0021E1B2 /* AddItemListViewSource.m in Sources */ = {isa = PBXBuildFile; fileRef = 414FBC4316164EFD0021E1B2 /* AddItemListViewSource.m */; };
 		4165678D15D5B74200EF93DF /* AppToolbarIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 4165678B15D5B74200EF93DF /* AppToolbarIcon.png */; };
 		4165678E15D5B74200EF93DF /* CloudToolbarIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 4165678C15D5B74200EF93DF /* CloudToolbarIcon.png */; };
 		4165679115D5DE2000EF93DF /* NSString+ShadowedTextDrawing.m in Sources */ = {isa = PBXBuildFile; fileRef = 4165679015D5DE2000EF93DF /* NSString+ShadowedTextDrawing.m */; };
@@ -326,6 +327,8 @@
 		4114FFB51649A8DF00B4D3DB /* audiobooks.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = audiobooks.png; path = Resources/audiobooks.png; sourceTree = "<group>"; };
 		4114FFB71649FD2400B4D3DB /* NSAlert+Dialogs.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "NSAlert+Dialogs.h"; path = "Classes/NSAlert+Dialogs.h"; sourceTree = "<group>"; };
 		4114FFB81649FD2400B4D3DB /* NSAlert+Dialogs.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "NSAlert+Dialogs.m"; path = "Classes/NSAlert+Dialogs.m"; sourceTree = "<group>"; };
+		4116019D164C840B00EDA836 /* ServiceCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ServiceCell.h; path = Classes/ServiceCell.h; sourceTree = "<group>"; };
+		4116019E164C840B00EDA836 /* ServiceCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = ServiceCell.m; path = Classes/ServiceCell.m; sourceTree = "<group>"; };
 		411FCF871640947F000B1841 /* Deployment+CreateFromAppAndTarget.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "Deployment+CreateFromAppAndTarget.h"; sourceTree = "<group>"; };
 		411FCF8816409481000B1841 /* Deployment+CreateFromAppAndTarget.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "Deployment+CreateFromAppAndTarget.m"; sourceTree = "<group>"; };
 		4131290915B61264005F6D54 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = /System/Library/Frameworks/CoreData.framework; sourceTree = "<absolute>"; };
@@ -368,8 +371,8 @@
 		414E185915C1BC0E007C9508 /* GridView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = GridView.m; path = Classes/GridView.m; sourceTree = "<group>"; };
 		414E185B15C226DF007C9508 /* Sequence.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Sequence.h; sourceTree = "<group>"; };
 		414E185C15C226DF007C9508 /* Sequence.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Sequence.m; sourceTree = "<group>"; };
-		414FBC4216164EFD0021E1B2 /* AddDeploymentListViewSource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AddDeploymentListViewSource.h; path = Classes/AddDeploymentListViewSource.h; sourceTree = "<group>"; };
-		414FBC4316164EFD0021E1B2 /* AddDeploymentListViewSource.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AddDeploymentListViewSource.m; path = Classes/AddDeploymentListViewSource.m; sourceTree = "<group>"; };
+		414FBC4216164EFD0021E1B2 /* AddItemListViewSource.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AddItemListViewSource.h; path = Classes/AddItemListViewSource.h; sourceTree = "<group>"; };
+		414FBC4316164EFD0021E1B2 /* AddItemListViewSource.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AddItemListViewSource.m; path = Classes/AddItemListViewSource.m; sourceTree = "<group>"; };
 		4165678B15D5B74200EF93DF /* AppToolbarIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = AppToolbarIcon.png; path = Resources/AppToolbarIcon.png; sourceTree = "<group>"; };
 		4165678C15D5B74200EF93DF /* CloudToolbarIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = CloudToolbarIcon.png; path = Resources/CloudToolbarIcon.png; sourceTree = "<group>"; };
 		4165678F15D5DE2000EF93DF /* NSString+ShadowedTextDrawing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "NSString+ShadowedTextDrawing.h"; path = "Classes/NSString+ShadowedTextDrawing.h"; sourceTree = "<group>"; };
@@ -607,6 +610,8 @@
 			children = (
 				41826E931608FE590094F5C2 /* AppCell.h */,
 				41826E941608FE590094F5C2 /* AppCell.m */,
+				4116019D164C840B00EDA836 /* ServiceCell.h */,
+				4116019E164C840B00EDA836 /* ServiceCell.m */,
 				41FA11CD15E433A90079FD30 /* TargetView.xib */,
 				41D286CB15C879D800206E3A /* TargetView.h */,
 				41D286CC15C879D800206E3A /* TargetView.m */,
@@ -890,8 +895,8 @@
 				41FA11BF15E431ED0079FD30 /* DeploymentView.m */,
 				41FA11BB15E431BB0079FD30 /* DeploymentController.h */,
 				41FA11BC15E431BB0079FD30 /* DeploymentController.m */,
-				414FBC4216164EFD0021E1B2 /* AddDeploymentListViewSource.h */,
-				414FBC4316164EFD0021E1B2 /* AddDeploymentListViewSource.m */,
+				414FBC4216164EFD0021E1B2 /* AddItemListViewSource.h */,
+				414FBC4316164EFD0021E1B2 /* AddItemListViewSource.m */,
 			);
 			name = Deployments;
 			sourceTree = "<group>";
@@ -1451,13 +1456,14 @@
 				41826E9E160A84280094F5C2 /* NoResultsCell.m in Sources */,
 				41826EA1160A84630094F5C2 /* NoResultsListViewDataSource.m in Sources */,
 				4104099D160D2CE000AF93AF /* WizardController.m in Sources */,
-				414FBC4416164EFD0021E1B2 /* AddDeploymentListViewSource.m in Sources */,
+				414FBC4416164EFD0021E1B2 /* AddItemListViewSource.m in Sources */,
 				410207D3161A74480077BCCA /* Label.m in Sources */,
 				414AC843162C8164005D8423 /* FoundryAppStatusTransformer.m in Sources */,
 				414AC846162C8C9B005D8423 /* FileSizeInMBTransformer.m in Sources */,
 				41B547EF1641A44E00C5C68F /* DeploymentToolbarView.m in Sources */,
 				41FC50D91648755D00C63E43 /* SourceListController.m in Sources */,
 				4114FFB91649FD2400B4D3DB /* NSAlert+Dialogs.m in Sources */,
+				4116019F164C840C00EDA836 /* ServiceCell.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
