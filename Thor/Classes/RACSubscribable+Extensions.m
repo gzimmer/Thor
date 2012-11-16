@@ -1,4 +1,5 @@
 #import "RACSubscribable+Extensions.h"
+#import "LoadingView.h"
 
 @implementation RACSubscribable (Extensions)
 
@@ -24,6 +25,14 @@
     }] selectMany:^id<RACSubscribable>(id x) {
         return x;
     }];
+}
+
++ (RACSubscribable *)performBlockInBackground:(id (^)())block {
+    return [[[RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
+        [subscriber sendNext:block()];
+        [subscriber sendCompleted];
+        return nil;
+    }] subscribeOn:[RACScheduler backgroundScheduler]] deliverOn:[RACScheduler mainQueueScheduler]];
 }
 
 @end

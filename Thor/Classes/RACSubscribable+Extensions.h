@@ -1,4 +1,3 @@
-#import "LoadingView.h"
 #import <ReactiveCocoa/ReactiveCocoa.h>
 
 @interface RACSubscribable (Extensions)
@@ -12,6 +11,8 @@
 - (RACSubscribable *)continueWith:(RACSubscribable *)subscribable;
 
 - (RACSubscribable *)continueAfter:(RACSubscribable *(^)(id))subscribable;
+
++ (RACSubscribable *)performBlockInBackground:(id (^)())block;
 
 @end
 
