@@ -15,6 +15,21 @@ typedef enum {
     FoundryAppStateUnknown
 } FoundryAppState;
 
+
+typedef enum {
+    FoundryAppMemoryAmountUnknown = -1,
+    FoundryAppMemoryAmount64 = 0,
+    FoundryAppMemoryAmount128 = 1,
+    FoundryAppMemoryAmount256 = 2,
+    FoundryAppMemoryAmount512 = 3,
+    FoundryAppMemoryAmount1024 = 4,
+    FoundryAppMemoryAmount2048 = 5,
+} FoundryAppMemoryAmount;
+
+NSUInteger FoundryAppMemoryAmountIntegerFromAmount(FoundryAppMemoryAmount amount);
+FoundryAppMemoryAmount FoundryAppMemoryAmountAmountFromInteger(NSUInteger integer);
+NSString * FoundryAppMemoryAmountStringFromAmount(FoundryAppMemoryAmount amount);
+
 @interface FoundryApp : NSObject
 
 @property (nonatomic, copy) NSString *name, *stagingFramework, *stagingRuntime;
@@ -84,6 +99,7 @@ NSString *DetectFrameworkFromPath(NSURL *rootURL);
 
 - (RACSubscribable *)getServicesInfo; // NSArray of FoundryServiceInfo
 - (RACSubscribable *)getServices; // NSArray of FoundryService
+- (RACSubscribable *)getServiceWithName:(NSString *)name;
 - (RACSubscribable *)createService:(FoundryService *)service;
 - (RACSubscribable *)deleteServiceWithName:(NSString *)name;
 

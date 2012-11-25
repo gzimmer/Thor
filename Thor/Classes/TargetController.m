@@ -12,7 +12,7 @@
 #import "DeploymentPropertiesController.h"
 #import "AddItemListViewSource.h"
 #import "NSAlert+Dialogs.h"
-#import "ServiceItemsDataSource.h"
+#import "ServiceInfoItemsDataSource.h"
 #import "ServicePropertiesController.h"
 
 @interface NSObject (AppsListViewSourceDelegate)
@@ -59,6 +59,7 @@
 @interface NSObject (ServicesListViewSourceDelegate)
 
 - (void)selectedService:(FoundryService *)service;
+- (void)accessoryButtonClickedForService:(FoundryService *)service;
 
 @end
 
@@ -81,6 +82,9 @@
     ServiceCell *cell = [[ServiceCell alloc] initWithFrame:NSZeroRect];
     FoundryService *service = services[row];
     cell.service = service;
+    [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+        [delegate accessoryButtonClickedForService:service];
+    }]];
     return cell;
 }
 
@@ -199,8 +203,10 @@
     [self.breadcrumbController pushViewController:deploymentController animated:YES];
 }
 
-- (BOOL)showsAccessoryButtonForApp:(FoundryApp *)app {    
-    return [self deploymentForApp:app] == nil;
+- (BOOL)showsAccessoryButtonForApp:(FoundryApp *)app {
+    NSError *error;
+    NSArray *configuredApps = [[ThorBackend shared] getConfiguredApps:&error];
+    return [self deploymentForApp:app] == nil && configuredApps.count > 0;
 }
 
 - (Deployment *)deploymentForApp:(FoundryApp *)app {
@@ -213,9 +219,23 @@
     NSLog(@"clicked on service %@", service);
 }
 
+- (void)accessoryButtonClickedForService:(FoundryService *)service {
+    NSAlert *alert = [NSAlert confirmDeleteServiceDialog];
+    
+    [alert presentSheetModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
+        if (returnCode == NSAlertDefaultReturn) {
+            self.associatedDisposable = [[client deleteServiceWithName:service.name] subscribeError:^(NSError *error) {
+                [NSApp presentError:error];
+            } completed:^{
+                [self updateApps];
+            }];
+        }
+    }];
+}
+
 - (void)createNewService {
     ItemsController *servicesInfoController = [[ItemsController alloc] init];
-    servicesInfoController.dataSource = [[ServiceItemsDataSource alloc] initWithClient:self.client];
+    servicesInfoController.dataSource = [[ServiceInfoItemsDataSource alloc] initWithClient:self.client];
     
     __block WizardController *wizardController;
     
@@ -233,8 +253,6 @@
         servicePropertiesController.service = service;
         
         [wizardController pushViewController:servicePropertiesController animated:YES];
-        
-        //[wizardController dismissWithReturnCode:NSOKButton];
     } rollbackBlock:nil];
     
     wizardItemsController.title = @"Create new service";
@@ -262,7 +280,7 @@
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
         App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
         Deployment *deployment = [Deployment deploymentWithApp:app target:target];
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentPropertiesControllerWithDeployment:deployment create:YES];
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentPropertiesControllerWithDeployment:deployment];
         deploymentController.title = @"Create Deployment";
         [wizardController pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
@@ -271,7 +289,7 @@
     wizardItemsController.commitButtonTitle = @"Next";
     
     wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
-    [wizardController presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
+    [wizardController presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
         if (returnCode == NSOKButton)
             [self updateApps];
     }];
@@ -322,22 +340,20 @@
 
 - (void)presentConfirmDeletionDialog {
     NSAlert *alert = [NSAlert confirmDeleteTargetDialog];
-    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:CONFIRM_DELETION_ALERT_CONTEXT];
-}
-
-- (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
-    NSString *contextString = (__bridge NSString *)contextInfo;
-    if ([contextString isEqual:CONFIRM_DELETION_ALERT_CONTEXT]) {
-        [[ThorBackend sharedContext] deleteObject:target];
-        NSError *error;
-        
-        if (![[ThorBackend sharedContext] save:&error]) {
-            [NSApp presentError:error];
-            return;
+    
+    [alert presentSheetModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
+        if (returnCode == NSAlertDefaultReturn) {
+            [[ThorBackend sharedContext] deleteObject:target];
+            NSError *error;
+            
+            if (![[ThorBackend sharedContext] save:&error]) {
+                [NSApp presentError:error];
+                return;
+            }
+            
+            [self.breadcrumbController popViewControllerAnimated:YES];
         }
-        
-        [self.breadcrumbController popViewControllerAnimated:YES];
-    }
+    }];
 }
 
 - (void)deleteClicked:(id)sender {
