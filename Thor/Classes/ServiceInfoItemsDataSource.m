@@ -1,21 +1,21 @@
-#import "ServiceItemsDataSource.h"
+#import "ServiceInfoItemsDataSource.h"
 #import "CollectionItemView.h"
 #import "Sequence.h"
 
 static NSNib *nib = nil;
 
-@interface ServiceItemsDataSource ()
+@interface ServiceInfoItemsDataSource ()
 
 @property (nonatomic, strong) FoundryClient *client;
 
 @end
 
-@implementation ServiceItemsDataSource
+@implementation ServiceInfoItemsDataSource
 
 @synthesize client;
 
 + (void)initialize {
-    nib = [[NSNib alloc] initWithNibNamed:@"ServiceCollectionItemView" bundle:nil];
+    nib = [[NSNib alloc] initWithNibNamed:@"ServiceInfoCollectionItemView" bundle:nil];
 }
 
 - (id)initWithClient:(id)leClient {
@@ -26,7 +26,7 @@ static NSNib *nib = nil;
 }
 
 - (RACSubscribable *)itemsForItemsController:(ItemsController *)itemsController error:(NSError **)error {
-    return [client getServices];
+    return [client getServicesInfo];
 }
 
 - (NSCollectionViewItem *)itemsController:(ItemsController *)itemsController collectionViewItemForCollectionView:(NSCollectionView *)collectionView item:(id)item  {
@@ -40,7 +40,7 @@ static NSNib *nib = nil;
     CollectionItemViewButton *button = [[view.subviews filter:^ BOOL (id o) {
         return [o isKindOfClass:[CollectionItemViewButton class]];
     }] objectAtIndex:0];
-    [button bind:@"label" toObject:item withKeyPath:@"name" options:nil];
+    [button bind:@"label" toObject:item withKeyPath:@"description" options:nil];
     
     [button addCommand:[RACCommand commandWithCanExecute:nil execute:^ void (id v) {
         assert([itemsController.arrayController setSelectedObjects:@[ item ]]);

@@ -273,7 +273,7 @@ describe(@"createApp", ^ {
         app.stagingFramework = @"rack";
         app.stagingRuntime = @"ruby18";
         app.uris = @[ @"app.foo.bar.com" ];
-        //app.services = @[];
+        app.services = @[];
         app.instances = 3;
         app.memory = 256;
         //app.disk = 512;
@@ -292,7 +292,52 @@ describe(@"createApp", ^ {
         @"runtime" : @"ruby18",
         },
         @"uris" : @[ @"app.foo.bar.com" ],
-        //@"services" : @[],
+        @"services" : @[],
+        @"instances": @3,
+        @"resources" : @{
+        @"memory" : @256//,
+        //@"disk" : @512
+        },
+        //@"state" : @"STARTED",
+        //@"env" : @[],
+        //@"meta" : @{
+        //@"debug" : @0
+        //}
+        }
+        
+        }];
+        
+        expect(endpoint.calls).to.equal(expectedCalls);
+    });
+    
+    it(@"should call endpoint with null framework, runtime, uris, and services", ^ {
+        
+        FoundryApp *app = [FoundryApp new];
+        
+        app.name = @"appname";
+        app.stagingFramework = nil;
+        app.stagingRuntime = nil;
+        app.uris = nil;
+        app.services = nil;
+        app.instances = 3;
+        app.memory = 256;
+        //app.disk = 512;
+        app.state = FoundryAppStateStarted;
+        
+        [[client createApp:app] subscribeCompleted:^{ }];
+        
+        id expectedCalls = @[@{
+        @"method" : @"POST",
+        @"path" : @"/apps",
+        @"headers" : [NSNull null],
+        @"body" : @{
+        @"name" : @"appname",
+        @"staging" : @{
+        @"framework" : [NSNull null],
+        @"runtime" : [NSNull null],
+        },
+        @"uris" : [NSNull null],
+        @"services" : [NSNull null],
         @"instances": @3,
         @"resources" : @{
         @"memory" : @256//,
@@ -329,7 +374,7 @@ describe(@"updateApp", ^ {
         app.stagingFramework = @"rack";
         app.stagingRuntime = @"ruby18";
         app.uris = @[ @"app.foo.bar.com" ];
-        //app.services = @[];
+        app.services = @[ @"redis", @"postgres" ];
         app.instances = 3;
         app.memory = 256;
         //app.disk = 512;
@@ -348,7 +393,7 @@ describe(@"updateApp", ^ {
         @"runtime" : @"ruby18",
         },
         @"uris" : @[ @"app.foo.bar.com" ],
-        //@"services" : @[],
+        @"services" : @[ @"redis", @"postgres" ],
         @"instances": @3,
         @"resources" : @{
         @"memory" : @256//,
@@ -1146,6 +1191,48 @@ describe(@"getServices", ^{
         expect(service1.name).to.equal(@"the name 2");
         expect(service1.vendor).to.equal(@"the vendor 2");
         expect(service1.version).to.equal(@"1.2.2");
+    });
+});
+
+describe(@"getServiceWithName", ^{
+    __block MockEndpoint *endpoint;
+    __block FoundryClient *client;
+    
+    beforeEach(^ {
+        endpoint = [MockEndpoint new];
+        client = [[FoundryClient alloc] initWithEndpoint:(FoundryEndpoint *)endpoint];
+    });
+    
+    it(@"should call endpoint", ^ {
+        [[client getServiceWithName:@"service-name"] subscribeCompleted:^{ }];
+        
+        id expectedCalls = @[@{
+        @"method" : @"GET",
+        @"path" : @"/services/service-name",
+        @"headers" : [NSNull null],
+        @"body" : [NSNull null]
+        }];
+        
+        expect(endpoint.calls).to.equal(expectedCalls);
+    });
+    
+    it(@"should parse results", ^ {
+        endpoint.results = @[
+        @{
+        @"name" : @"the name",
+        @"vendor" : @"the vendor",
+        @"version" : @"1.2"
+        }
+        ];
+        
+        __block FoundryService *result;
+        [[client getServiceWithName:@"the name"] subscribeNext:^(id x) {
+            result = (FoundryService *)x;
+        }];
+        
+        expect(result.name).to.equal(@"the name");
+        expect(result.vendor).to.equal(@"the vendor");
+        expect(result.version).to.equal(@"1.2");
     });
 });
 

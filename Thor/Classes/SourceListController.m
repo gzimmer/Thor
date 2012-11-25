@@ -1,18 +1,24 @@
 #import "SourceListController.h"
 #import "ThorCore.h"
 #import "Sequence.h"
+#import "NSAlert+Dialogs.h"
 
 @implementation SourceListControllerView
 
 @synthesize sourceList, contentView;
 
 - (void)layout {
-    self.contentView.frame = NSMakeRect(sourceList.frame.size.width, 0, self.bounds.size.width - sourceList.frame.size.width, self.bounds.size.height);
+    self.contentView.frame = NSMakeRect(sourceList.frame.size.width + 1, 0, self.bounds.size.width - sourceList.frame.size.width - 1, self.bounds.size.height);
     
     if (self.contentView.subviews.count)
         ((NSView *)self.contentView.subviews[0]).frame = self.contentView.bounds;
     
     [super layout];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [[NSColor colorWithDeviceWhite:.7 alpha:1] set];
+    NSRectFill(NSMakeRect(sourceList.frame.size.width, 0, 1, self.bounds.size.height));
 }
 
 @end
@@ -50,11 +56,15 @@
     return (SourceListControllerView *)self.view;
 }
 
-- (void)setCurrentController:(NSViewController *)currentController {
+- (void)setCurrentController:(NSViewController<ViewVisibilityAware> *)currentController {
     _currentController = currentController;
     [self.controllerView.contentView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     [self.controllerView.contentView addSubview:currentController.view];
     self.controllerView.needsLayout = YES;
+    [self.controllerView layoutSubtreeIfNeeded];
+    if ([currentController respondsToSelector:@selector(viewWillAppear)]) {
+        [currentController viewWillAppear];
+    }
 }
 
 - (id)init {
@@ -167,24 +177,19 @@
     
     NSAlert *alert = self.deleteModelConfirmation(selectedModel);
     
-    [alert beginSheetModalForWindow:self.view.window modalDelegate:self didEndSelector:@selector(alertDidEnd:returnCode:contextInfo:) contextInfo:(void *)selectedModel];
-}
-
-
-- (void)alertDidEnd:(NSAlert *)alert returnCode:(NSInteger)returnCode contextInfo:(void *)contextInfo {
-    if (returnCode == NSOKButton) {
-        id model = (__bridge id)contextInfo;
-
-        [[ThorBackend sharedContext] deleteObject:model];
-        NSError *error;
-
-        if (![[ThorBackend sharedContext] save:&error]) {
-            [NSApp presentError:error];
-            return;
+    [alert presentSheetModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
+        if (returnCode == NSAlertDefaultReturn) {
+            [[ThorBackend sharedContext] deleteObject:selectedModel];
+            NSError *error;
+            
+            if (![[ThorBackend sharedContext] save:&error]) {
+                [NSApp presentError:error];
+                return;
+            }
+            
+            [self updateAppsAndTargets];
         }
-        
-        [self updateAppsAndTargets];
-    }
+    }];
 }
 
 @end

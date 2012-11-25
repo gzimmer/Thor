@@ -1,5 +1,4 @@
 #import "AppDelegate.h"
-#import "ToolbarTabController.h"
 #import "DeploymentMemoryTransformer.h"
 #import "SourceListController.h"
 #import "TargetController.h"
@@ -11,18 +10,13 @@
 
 @interface AppDelegate ()
 
-@property (nonatomic, strong) ToolbarTabController *toolbarTabController;
 @property (nonatomic, strong) SourceListController *sourceListController;
 
 @end
 
 @implementation AppDelegate
 
-@synthesize toolbarTabController, sourceListController;
-
-+ (void)initialize {
-    [NSValueTransformer setValueTransformer:[DeploymentMemoryTransformer new] forName:@"DeploymentMemoryTransformer"];
-}
+@synthesize sourceListController;
 
 - (id)init {
     if (self = [super init]) {
@@ -76,7 +70,7 @@
     [openPanel beginSheetModalForWindow:window completionHandler:^ void (NSInteger result) {
         if (result == NSFileHandlingPanelOKButton) {
             app.localRoot = [[openPanel.URLs objectAtIndex:0] path];
-            app.displayName = [((NSURL *)[NSURL fileURLWithPath:app.localRoot]).pathComponents lastObject];
+            app.displayName = app.lastPathComponent;
             [[ThorBackend sharedContext] insertObject:app];
             
             NSError *error = nil;
