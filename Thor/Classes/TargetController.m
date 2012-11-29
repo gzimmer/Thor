@@ -273,6 +273,10 @@
 }
 
 - (void)createNewDeployment {
+    NSError *error;
+    if (![[ThorBackend shared] getConfiguredApps:&error].count)
+        [self presentNoConfiguredAppsDialog];
+    
     __block WizardController *wizardController;
     
     ItemsController *appsController = [self createAppItemsController];
@@ -332,10 +336,16 @@
     targetPropertiesController.title = @"Edit Cloud";
     
     WizardController *wizardController = [[WizardController alloc] initWithRootViewController:targetPropertiesController];
+    wizardController.isSinglePage = YES;
     [wizardController presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
         if (returnCode == NSOKButton)
             [self updateApps];
     }];
+}
+
+- (void)presentNoConfiguredAppsDialog {
+    NSAlert *alert = [NSAlert noConfiguredAppsDialog];
+    [alert presentSheetModalForWindow:self.view.window didEndBlock:nil];
 }
 
 - (void)presentConfirmDeletionDialog {
