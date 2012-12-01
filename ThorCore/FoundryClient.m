@@ -6,6 +6,23 @@
 #import "SHA1.h"
 #import "NSOutputStream+Writing.h"
 
+@interface FoundryClientError : NSError
+
+@end
+
+@implementation FoundryClientError
+
+- (NSString *)localizedDescription {
+    switch (self.code) {
+        case FoundryClientInvalidCredentials:
+            return @"Your username and password are invalid. Double check them and try again.";
+    }
+}
+
+@end
+
+NSString *FoundryClientErrorDomain = @"FoundryClientErrorDomain";
+
 static id (^JsonParser)(id) = ^ id (id d) {
     NSData *data = (NSData *)d;
     return data.length ? [data JSONValue] : nil;
@@ -43,8 +60,21 @@ static id (^JsonParser)(id) = ^ id (id d) {
 
 - (RACSubscribable *)getToken {
     NSString *path = [NSString stringWithFormat:@"/users/%@/tokens", email];
-    return [[self requestWithMethod:@"POST" path:path headers:nil body:[NSDictionary dictionaryWithObject:password forKey:@"password"]] select:^ id (id r) {
-        return ((NSDictionary *)r)[@"token"];
+    
+    return [RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
+        return [[self requestWithMethod:@"POST" path:path headers:nil body:[NSDictionary dictionaryWithObject:password forKey:@"password"]] subscribeNext:^(id r) {
+            [subscriber sendNext:((NSDictionary *)r)[@"token"]];
+        } error:^(NSError *error) {
+            if ([error.domain isEqual:@"SMWebRequest"]) {
+                SMErrorResponse *errorResponse = error.userInfo[SMErrorResponseKey];
+                if (errorResponse.response.statusCode == 403) {
+                    [subscriber sendError:[FoundryClientError errorWithDomain:FoundryClientErrorDomain code:FoundryClientInvalidCredentials userInfo:nil]];
+                }
+            }
+            else [subscriber sendError:error];
+        } completed:^{
+            [subscriber sendCompleted];
+        }];
     }];
 }
 
@@ -205,13 +235,25 @@ NSString * FoundryAppMemoryAmountStringFromAmount(FoundryAppMemoryAmount amount)
             @"memory" : [NSNumber numberWithInteger:memory]//,
             //@"disk" : [NSNumber numberWithInteger:disk]
         },
-        //@"state" : AppStateStringFromState(state),
+        @"state" : AppStateStringFromState(state),
         @"services" : services ? services : [NSNull null],
         //@"env" : @[],
         //@"meta" : @{
         //    @"debug" : @NO
         //}
     };
+}
+
+@end
+
+@interface NSObject (NumberOrNil)
+
+@end
+
+@implementation NSObject (NumberOrNil)
+
+- (NSNumber *)numberOrNil {
+    return [self isKindOfClass:[NSNumber class]] ? (NSNumber *)self : nil;
 }
 
 @end
@@ -224,16 +266,23 @@ NSString * FoundryAppMemoryAmountStringFromAmount(FoundryAppMemoryAmount amount)
     FoundryAppInstanceStats *result = [FoundryAppInstanceStats new];
     result.ID = lID;
     
-    NSDictionary *statsDict = dictionary[@"stats"];
-    result.host = statsDict[@"host"];
-    result.port = [statsDict[@"port"] intValue];
+    if ([dictionary[@"state"] isEqual:@"DOWN"]) {
+        NSLog(@"Got a down instance.");
+        result.isDown = YES;
+        return result;
+    }
     
-    result.uptime = [statsDict[@"uptime"] floatValue];
+    NSDictionary *statsDict = dictionary[@"stats"];
+    
+    result.host = statsDict[@"host"];
+    result.port = [[statsDict[@"port"] numberOrNil] intValue];
+    result.uptime = [[statsDict[@"uptime"] numberOrNil] floatValue];
     
     NSDictionary *usageDict = statsDict[@"usage"];
-    result.cpu = [usageDict[@"cpu"] floatValue];
-    result.memory = [usageDict[@"mem"] floatValue];
-    result.disk = [usageDict[@"disk"] intValue];
+    
+    result.cpu = [[usageDict[@"cpu"] numberOrNil] floatValue];
+    result.memory = [[usageDict[@"mem"] numberOrNil] floatValue];
+    result.disk = [[usageDict[@"disk"] numberOrNil] intValue];
  
     return result;
 }

@@ -47,6 +47,7 @@ NSString * FoundryAppMemoryAmountStringFromAmount(FoundryAppMemoryAmount amount)
 
 @interface FoundryAppInstanceStats : NSObject
 
+@property (nonatomic, assign) bool isDown;
 @property (nonatomic, copy) NSString *ID, *host;
 @property (nonatomic, assign) NSInteger port, disk;
 @property (nonatomic, assign) float cpu, memory, uptime;
@@ -104,6 +105,10 @@ NSString *DetectFrameworkFromPath(NSURL *rootURL);
 - (RACSubscribable *)deleteServiceWithName:(NSString *)name;
 
 @end
+
+extern NSString *FoundryClientErrorDomain;
+
+const static NSInteger FoundryClientInvalidCredentials = 1;
 
 @interface FoundryClient : NSObject <FoundryClient>
 
