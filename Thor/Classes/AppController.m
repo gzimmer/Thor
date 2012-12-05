@@ -108,8 +108,7 @@
     
     WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
         Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
-        Deployment *deployment = [Deployment deploymentWithApp:app target:target];
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentPropertiesControllerWithDeployment:deployment];
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentPropertiesControllerWithApp:app target:target];
         deploymentController.title = @"Create Deployment";
         [wizardController pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
@@ -127,27 +126,6 @@
 - (void)presentNoConfiguredTargetsDialog {
     NSAlert *alert = [NSAlert noConfiguredTargetsDialog];
     [alert presentSheetModalForWindow:self.view.window didEndBlock:nil];
-}
-
-- (void)presentConfirmDeletionDialog {
-    NSAlert *alert = [NSAlert confirmDeleteAppDialog];
-    [alert presentSheetModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
-        if (returnCode == NSAlertDefaultReturn) {
-            [[ThorBackend sharedContext] deleteObject:app];
-            NSError *error;
-            
-            if (![[ThorBackend sharedContext] save:&error]) {
-                [NSApp presentError:error];
-                return;
-            }
-            
-            [self.breadcrumbController popViewControllerAnimated:YES];
-        }
-    }];
-}
-
-- (void)deleteClicked:(id)sender {
-    [self presentConfirmDeletionDialog];
 }
 
 - (void)pushDeployment:(Deployment *)deployment sender:(NSButton *)button {
