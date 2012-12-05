@@ -1,11 +1,20 @@
 #import <ReactiveCocoa/ReactiveCocoa.h>
 
+@interface RestEndpoint : NSObject
+
+- (RACSubscribable *)requestWithHost:(NSString *)host method:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body;
+
+@end
+
 @interface FoundryEndpoint : NSObject
 
 @property (nonatomic, copy) NSString *hostname, *email, *password;
 
 // result is parsed JSON of response body
 - (RACSubscribable *)authenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body;
+
+- (RACSubscribable *)verifyCredentials;
+
 
 @end
 
@@ -47,6 +56,7 @@ NSString * FoundryAppMemoryAmountStringFromAmount(FoundryAppMemoryAmount amount)
 
 @interface FoundryAppInstanceStats : NSObject
 
+@property (nonatomic, assign) bool isDown;
 @property (nonatomic, copy) NSString *ID, *host;
 @property (nonatomic, assign) NSInteger port, disk;
 @property (nonatomic, assign) float cpu, memory, uptime;
@@ -104,6 +114,10 @@ NSString *DetectFrameworkFromPath(NSURL *rootURL);
 - (RACSubscribable *)deleteServiceWithName:(NSString *)name;
 
 @end
+
+extern NSString *FoundryClientErrorDomain;
+
+const static NSInteger FoundryClientInvalidCredentials = 1;
 
 @interface FoundryClient : NSObject <FoundryClient>
 

@@ -44,14 +44,7 @@
     return [result copy];
 }
 
-- (RACSubscribable *)authenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
-    NSDictionary *call = @{
-    @"method" : method ? method : [NSNull null],
-    @"path" : path ? path : [NSNull null],
-    @"headers" : headers ? headers : [NSNull null],
-    @"body" : body ? ([body isKindOfClass:[NSInputStream class]] ? [self stringFromStream:(NSInputStream *)body] : body) : [NSNull null]
-    };
-    
+- (RACSubscribable *)logCallAndGetResult:(NSDictionary *)call {
     calls = [calls arrayByAddingObject:call];
     
     id resultObject = results.count ? results[0] : nil;
@@ -65,7 +58,77 @@
     return [RACSubscribable return:resultObject];
 }
 
+- (RACSubscribable *)authenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
+    NSDictionary *call = @{
+    @"method" : method ? method : [NSNull null],
+    @"path" : path ? path : [NSNull null],
+    @"headers" : headers ? headers : [NSNull null],
+    @"body" : body ? ([body isKindOfClass:[NSInputStream class]] ? [self stringFromStream:(NSInputStream *)body] : body) : [NSNull null]
+    };
+    
+    return [self logCallAndGetResult:call];
+}
+
+- (RACSubscribable *)requestWithHost:(NSString *)hostname method:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
+    NSDictionary *call = @{
+    @"host": hostname,
+    @"method" : method ? method : [NSNull null],
+    @"path" : path ? path : [NSNull null],
+    @"headers" : headers ? headers : [NSNull null],
+    @"body" : body ? ([body isKindOfClass:[NSInputStream class]] ? [self stringFromStream:(NSInputStream *)body] : body) : [NSNull null]
+    };
+    
+    
+    return [self logCallAndGetResult:call];
+}
+
 @end
+
+SpecBegin(RestEndpoint)
+
+describe(@"verifyCredentials", ^{
+    
+    __block MockEndpoint *wrappedEndpoint;
+    __block FoundryEndpoint *endpoint;
+    
+    beforeEach(^ {
+        wrappedEndpoint = [[MockEndpoint alloc] init];
+        endpoint = [[FoundryEndpoint alloc] init];
+        endpoint.hostname = @"cool.com";
+        endpoint.email = @"thor@tier3.com";
+        endpoint.password = @"passw0rd";
+        
+        wrappedEndpoint.results = @[@{@"token": @"foobs"}];
+        
+        [(id)endpoint setEndpoint:wrappedEndpoint];
+    });
+    
+    it(@"should call endpoint", ^ {
+        [[endpoint verifyCredentials] subscribeCompleted:^{ }];
+        
+        id expectedCalls = @[@{
+        @"host": @"cool.com",
+        @"method" : @"POST",
+        @"path" : @"/users/thor@tier3.com/tokens",
+        @"headers" : [NSNull null],
+        @"body" : @{ @"password": @"passw0rd" }
+        }];
+        
+        expect(wrappedEndpoint.calls).to.equal(expectedCalls);
+    });
+    
+    it(@"should parse results", ^ {
+        
+        __block NSArray *result;
+        [[endpoint verifyCredentials] subscribeNext:^(id x) {
+            result = (NSArray *)x;
+        }];
+        
+        expect(result).to.equal(@"foobs");
+    });
+});
+
+SpecEnd
 
 SpecBegin(FoundryService)
 
@@ -253,6 +316,69 @@ describe(@"getStatsForAppWithName", ^ {
         expect(stats.memory).to.equal(2048.3);
         expect(stats.disk).to.equal(4096);
     });
+    
+    it(@"should parse result with nulls", ^ {
+        endpoint.results = @[ @{
+        @"0" : @{
+            @"stats" : @{
+                @"host" : @"10.0.0.1",
+                @"port" : [NSNull null],
+                @"uptime": [NSNull null],
+                @"usage" : @{
+                    @"cpu" : [NSNull null],
+                    @"mem" : @2048.3,
+                    @"disk": @4096
+                }
+            }
+        }
+        }];
+        
+        __block NSArray *result;
+        
+        [[client getStatsForAppWithName:@"the name"] subscribeNext:^(id x) {
+            result = (NSArray *)x;
+        }];
+        
+        expect(result.count).to.equal(1);
+        
+        FoundryAppInstanceStats *stats = result[0];
+        
+        expect(stats.ID).to.equal(@"0");
+        expect(stats.host).to.equal(@"10.0.0.1");
+        expect(stats.port).to.equal(0);
+        expect(stats.uptime).to.equal(0);
+        expect(stats.cpu).to.equal(0);
+        expect(stats.memory).to.equal(2048.3);
+        expect(stats.disk).to.equal(4096);
+    });
+    
+    it(@"should parse result with down instances", ^ {
+        endpoint.results = @[ @{
+        @"0" : @{
+            @"since" : @1354230089,
+            @"state" : @"DOWN"
+        }
+        }];
+        
+        __block NSArray *result;
+        
+        [[client getStatsForAppWithName:@"the name"] subscribeNext:^(id x) {
+            result = (NSArray *)x;
+        }];
+        
+        expect(result.count).to.equal(1);
+        
+        FoundryAppInstanceStats *stats = result[0];
+        
+        expect(stats.ID).to.equal(@"0");
+        expect(stats.isDown).to.beTruthy();
+        expect(stats.host).to.beNil();
+        expect(stats.port).to.equal(0);
+        expect(stats.uptime).to.equal(0);
+        expect(stats.cpu).to.equal(0);
+        expect(stats.memory).to.equal(0);
+        expect(stats.disk).to.equal(0);
+    });
 });
 
 describe(@"createApp", ^ {
@@ -298,7 +424,7 @@ describe(@"createApp", ^ {
         @"memory" : @256//,
         //@"disk" : @512
         },
-        //@"state" : @"STARTED",
+        @"state" : @"STARTED",
         //@"env" : @[],
         //@"meta" : @{
         //@"debug" : @0
@@ -343,7 +469,7 @@ describe(@"createApp", ^ {
         @"memory" : @256//,
         //@"disk" : @512
         },
-        //@"state" : @"STARTED",
+        @"state" : @"STARTED",
         //@"env" : @[],
         //@"meta" : @{
         //@"debug" : @0
@@ -399,7 +525,52 @@ describe(@"updateApp", ^ {
         @"memory" : @256//,
         //@"disk" : @512
         },
-        //@"state" : @"STARTED",
+        @"state" : @"STARTED",
+        //@"env" : @[],
+        //@"meta" : @{
+        //@"debug" : @0
+        //}
+        }
+        
+        }];
+        
+        expect(endpoint.calls).to.equal(expectedCalls);
+    });
+    
+    it(@"should call endpoint with stopped state", ^ {
+        
+        FoundryApp *app = [FoundryApp new];
+        
+        app.name = @"appname";
+        app.stagingFramework = @"rack";
+        app.stagingRuntime = @"ruby18";
+        app.uris = @[ @"app.foo.bar.com" ];
+        app.services = @[ @"redis", @"postgres" ];
+        app.instances = 3;
+        app.memory = 256;
+        //app.disk = 512;
+        app.state = FoundryAppStateStopped;
+        
+        [[client updateApp:app] subscribeCompleted:^{ }];
+        
+        id expectedCalls = @[@{
+        @"method" : @"PUT",
+        @"path" : @"/apps/appname",
+        @"headers" : [NSNull null],
+        @"body" : @{
+        @"name" : @"appname",
+        @"staging" : @{
+        @"framework" : @"rack",
+        @"runtime" : @"ruby18",
+        },
+        @"uris" : @[ @"app.foo.bar.com" ],
+        @"services" : @[ @"redis", @"postgres" ],
+        @"instances": @3,
+        @"resources" : @{
+        @"memory" : @256//,
+        //@"disk" : @512
+        },
+        @"state" : @"STOPPED",
         //@"env" : @[],
         //@"meta" : @{
         //@"debug" : @0
