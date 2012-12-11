@@ -16,10 +16,8 @@
 
 - (void)awakeFromNib {
     if (target.managedObjectContext) {
-        targetPropertiesView.nameAndHostnameHidden = YES;
+        targetPropertiesView.hostnameHidden = YES;
     }
-    
-    targetPropertiesView.confirmButton.title = editing ? @"Save" : @"OK";
 }
 
 - (void)commitWizardPanel {
@@ -27,8 +25,10 @@
     
     self.associatedDisposable = [[[[FoundryEndpoint endpointWithTarget:target] verifyCredentials] showLoadingViewInWizard:self.wizardController] subscribeNext:^(id x) {
         if ([x boolValue]) {
-            if (!target.managedObjectContext)
+            if (!target.managedObjectContext) {
+                target.displayName = target.hostname;
                 [[ThorBackend sharedContext] insertObject:target];
+            }
             
             NSError *error = nil;
             
