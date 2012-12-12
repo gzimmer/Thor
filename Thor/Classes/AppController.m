@@ -10,6 +10,7 @@
 #import "AddItemListViewSource.h"
 #import "Sequence.h"
 #import "NSAlert+Dialogs.h"
+#import "AppDelegate.h"
 
 @interface AppController ()
 
@@ -129,26 +130,22 @@
 }
 
 - (void)pushDeployment:(Deployment *)deployment sender:(NSButton *)button {
+    button.enabled = NO;
+    
     FoundryClient *client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:deployment.target]];
     
-    RACSubscribable *deploy = [[[RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
-        NSURL *rootURL = [NSURL fileURLWithPath:deployment.app.localRoot];
-        id manifest = CreateSlugManifestFromPath(rootURL);
-        NSURL *slug = CreateSlugFromManifest(manifest, rootURL);
-        
-        return [[[client postSlug:slug manifest:manifest toAppWithName:deployment.name] subscribeOn:[RACScheduler mainQueueScheduler]] subscribe:subscriber];
-    }] subscribeOn:[RACScheduler backgroundScheduler]] deliverOn:[RACScheduler mainQueueScheduler]];
-    
-    button.enabled = NO;
-    button.title = @"Pushing…";
-    [deploy subscribeError:^(NSError *error) {
-        [NSApp presentError:error];
+    RACSubscribable *subscribable = [[[[[client pushAppWithName:deployment.name fromLocalPath:deployment.app.localRoot] subscribeOn:[RACScheduler backgroundScheduler]] deliverOn:[RACScheduler mainQueueScheduler]] doCompleted:^ {
         button.enabled = YES;
-        button.title = @"Push";
-    } completed:^{
+    }] doError:^(NSError *error) {
         button.enabled = YES;
-        button.title = @"Push";
     }];
+    
+    PushActivity *activity = [[PushActivity alloc] initWithSubscribable:subscribable];
+    activity.localPath = deployment.app.localRoot;
+    activity.targetHostname = deployment.target.hostname;
+    activity.targetAppName = deployment.name;
+    
+    [((AppDelegate *)[NSApplication sharedApplication].delegate).activityController insert:activity];
 }
 
 @end

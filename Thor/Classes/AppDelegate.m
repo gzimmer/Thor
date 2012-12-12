@@ -16,7 +16,7 @@
 
 @implementation AppDelegate
 
-@synthesize sourceListController, selectedTarget;
+@synthesize activityController, sourceListController, selectedTarget;
 
 - (id)init {
     if (self = [super init]) {
@@ -47,11 +47,18 @@
                 return [NSAlert confirmDeleteAppDialog];
             return nil;
         };
+        
+        self.activityController = [[ActivityController alloc] init];
     }
     return self;
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    [activityWindow.contentView addSubview:activityController.view];
+    activityController.view.frame = ((NSView *)activityWindow.contentView).bounds;
+    activityController.view.needsLayout = YES;
+    [activityController.view layoutSubtreeIfNeeded];
+    
     [view addSubview:sourceListController.view];
     sourceListController.view.frame = view.bounds;
 }
