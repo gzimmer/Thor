@@ -12,7 +12,7 @@
 
 
 - (NSSize)intrinsicContentSize {
-    return NSMakeSize(480, 279);
+    return NSMakeSize(NSViewNoInstrinsicMetric, _nameHidden ? 107 : 140);
 }
 
 @end

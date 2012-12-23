@@ -1,4 +1,5 @@
 #import <ReactiveCocoa/ReactiveCocoa.h>
+#import "TableController.h"
 
 @interface PushActivity : NSObject
 
@@ -11,6 +12,7 @@
 
 @interface ActivityController : NSViewController
 
+- (void)clear;
 - (void)insert:(PushActivity *)activity;
 
 @end

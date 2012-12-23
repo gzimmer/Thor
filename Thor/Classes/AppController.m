@@ -1,7 +1,6 @@
 #import "AppController.h"
 #import "SheetWindow.h"
 #import "DeploymentController.h"
-#import "TargetItemsDataSource.h"
 #import "DeploymentPropertiesController.h"
 #import "ThorCore.h"
 #import "DeploymentCell.h"
@@ -11,17 +10,18 @@
 #import "Sequence.h"
 #import "NSAlert+Dialogs.h"
 #import "AppDelegate.h"
+#import "TableController.h"
+#import "RACSubscribable+Extensions.h"
 
 @interface AppController ()
 
-@property (nonatomic, strong) TargetItemsDataSource *targetItemsDataSource;
 @property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> listSource;
 
 @end
 
 @implementation AppController
 
-@synthesize app, deployments, breadcrumbController, title, appView, targetItemsDataSource, listSource;
+@synthesize app, deployments, breadcrumbController, title, appView, listSource;
 
 - (id)init {
     if (self = [super initWithNibName:@"AppView" bundle:[NSBundle mainBundle]]) {
@@ -103,21 +103,37 @@
         [self presentNoConfiguredTargetsDialog];
     
     __block WizardController *wizardController;
+    __block Target *selectedTarget;
     
-    ItemsController *targetsController = [[ItemsController alloc] init];
-    targetsController.dataSource = [[TargetItemsDataSource alloc] init];
+    TableController *tableController = [[TableController alloc] initWithSubscribable:[[RACSubscribable performBlockInBackground:^ id {
+        return [[ThorBackend shared] getConfiguredTargets:nil];
+    }] select:^id(id targets) {
+        return [targets map:^id(id x) {
+            Target *target = (Target *)x;
+            
+            TableItem *item = [[TableItem alloc] init];
+            item.view = ^ NSView *(NSTableView *tableView, NSTableColumn *column, NSInteger row) {
+                TableCell *cell = [[TableCell alloc] init];
+                cell.label.stringValue = [NSString stringWithFormat:@"%@", target.displayName];
+                return cell;
+            };
+            item.selected = ^ {
+                selectedTarget = target;
+            };
+            return item;
+        }];
+    }]];
     
-    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:targetsController commitBlock:^{
-        Target *target = [targetsController.arrayController.selectedObjects objectAtIndex:0];
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentPropertiesControllerWithApp:app target:target];
+    WizardTableController *wizardTableController = [[WizardTableController alloc] initWithTableController:tableController commitBlock:^{
+        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController newDeploymentPropertiesControllerWithApp:app target:selectedTarget];
         deploymentController.title = @"Create Deployment";
         [wizardController pushViewController:deploymentController animated:YES];
     } rollbackBlock:nil];
     
-    wizardItemsController.title = @"Choose Cloud";
-    wizardItemsController.commitButtonTitle = @"Next";
+    wizardTableController.title = @"Choose Cloud";
+    wizardTableController.commitButtonTitle = @"Next";
 
-    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
+    wizardController = [[WizardController alloc] initWithRootViewController:wizardTableController];
     [wizardController presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
         if (returnCode == NSOKButton)
             [self updateDeployments];
@@ -146,6 +162,7 @@
     activity.targetAppName = deployment.name;
     
     [((AppDelegate *)[NSApplication sharedApplication].delegate).activityController insert:activity];
+    [((AppDelegate *)[NSApplication sharedApplication].delegate).activityWindow makeKeyAndOrderFront:nil];
 }
 
 @end

@@ -10,9 +10,9 @@
 #import "Sequence.h"
 #import "NoResultsListViewDataSource.h"
 #import "AddItemListViewSource.h"
-#import "ItemsController.h"
-#import "ServiceItemsDataSource.h"
 #import "NSAlert+Dialogs.h"
+#import "TableController.h"
+#import "AppDelegate.h"
 
 @interface NSObject (BoundServicesListViewSourceDelegate)
 
@@ -81,8 +81,16 @@ static NSArray *instanceColumns = nil;
         self.appName = lAppName;
         self.deployment = leDeployment;
         self.client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
+        
+        // XXX horrible
+        ((AppDelegate *)[NSApplication sharedApplication].delegate).selectedDeployment = self;
     }
     return self;
+}
+
+- (void)dealloc {
+    // XXX horrible
+    ((AppDelegate *)[NSApplication sharedApplication].delegate).selectedDeployment = nil;
 }
 
 + (DeploymentController *)deploymentControllerWithDeployment:(Deployment *)deployment {
@@ -116,7 +124,11 @@ static NSArray *instanceColumns = nil;
         }
     }]];
     
-    RACSubscribable *call = [[RACSubscribable combineLatest:subscribables] showLoadingViewInView:self.view];
+    
+    RACSubscribable *call = [RACSubscribable combineLatest:subscribables];
+    
+    if (!app)
+        call = [call showLoadingViewInView:self.view];
     
     if (antecedent)
         call = [antecedent continueWith:call];
@@ -130,6 +142,7 @@ static NSArray *instanceColumns = nil;
         }
         else {
             [NSApp presentError:error];
+            [self updateAppAndStatsAfterSubscribable:nil];
         }
     } completed:^ {
         [deploymentView.instancesGrid reloadData];
@@ -227,6 +240,24 @@ static NSArray *instanceColumns = nil;
     return instanceColumns.count;
 }
 
+- (CGFloat)gridView:(GridView *)gridView widthOfColumn:(NSUInteger)columnIndex {
+    switch (columnIndex) {
+        case 0:
+            return 35;
+        case 1:
+            return 130;
+        case 2:
+            return 40;
+        case 3:
+            return 60;
+        case 4:
+            return 70;
+        case 5:
+            return 80;
+    }
+    return 0;
+}
+
 - (NSString *)gridView:(GridView *)gridView titleForColumn:(NSUInteger)columnIndex {
     return [instanceColumns objectAtIndex:columnIndex];
 }
@@ -319,15 +350,15 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)startClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[self updateWithState:FoundryAppStateStarted]];
+    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStarted]  animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)stopClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[self updateWithState:FoundryAppStateStopped]];
+    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStopped] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)restartClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStopped] continueWith:[self updateWithState:FoundryAppStateStarted]]];
+    [self updateAppAndStatsAfterSubscribable:[[[self updateWithState:FoundryAppStateStopped] continueWith:[self updateWithState:FoundryAppStateStarted]] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)serviceSelected:(FoundryService *)service {
@@ -335,38 +366,7 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)presentBindServiceDialog {
-    self.associatedDisposable = [[client getServices] subscribeNext:^(id x) {
-        NSArray *services = (NSArray *)x;
-        
-        if (!services.count) {
-            NSAlert *alert = [NSAlert noProvisionedServicesDialog];
-            [alert presentSheetModalForWindow:self.view.window didEndBlock:nil];
-            return;
-        }
-        
-        ItemsController *itemsController = [[ItemsController alloc] init];
-        itemsController.dataSource = [[ServiceItemsDataSource alloc] initWithServices:services];
-        __block WizardController *wizard;
-        WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:itemsController commitBlock:^{
-            FoundryService *service = itemsController.arrayController.selectedObjects[0];
-            
-            self.associatedDisposable = [[self updateByAddingServiceNamed:service.name] subscribeCompleted:^{
-                [wizard dismissWithReturnCode:NSOKButton];
-            }];
-        } rollbackBlock:nil];
-        wizardItemsController.title = @"Bind service";
-        wizardItemsController.commitButtonTitle = @"OK";
-        
-        wizard = [[WizardController alloc] initWithRootViewController:wizardItemsController];
-        wizard.isSinglePage = YES;
-        [wizard presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
-            [self updateAppAndStatsAfterSubscribable:nil];
-        }];
-    } error:^(NSError *error) {
-        [NSApp presentError:error];
-    } completed:^{
-        
-    }];
+    [((AppDelegate *)[NSApplication sharedApplication].delegate) bindService:nil];
 }
 
 - (void)selectedService:(FoundryService *)service {
