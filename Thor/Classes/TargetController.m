@@ -1,5 +1,4 @@
 #import "TargetController.h"
-#import "TargetPropertiesController.h"
 #import "SheetWindow.h"
 #import "NSObject+AssociateDisposable.h"
 #import "DeploymentController.h"
@@ -8,12 +7,17 @@
 #import "NoResultsListViewDataSource.h"
 #import "RACSubscribable+Extensions.h"
 #import "Sequence.h"
-#import "AppItemsDataSource.h"
 #import "DeploymentPropertiesController.h"
 #import "AddItemListViewSource.h"
 #import "NSAlert+Dialogs.h"
-#import "ServiceInfoItemsDataSource.h"
-#import "ServicePropertiesController.h"
+#import "TableController.h"
+#import "AppDelegate.h"
+
+@implementation TargetSummary
+
+@synthesize appCount, totalDiskMegabytes, totalMemoryMegabytes;
+
+@end
 
 @interface NSObject (AppsListViewSourceDelegate)
 
@@ -98,7 +102,6 @@
 @interface TargetController ()
 
 @property (nonatomic, strong) NSArray *apps;
-@property (nonatomic, strong) FoundryClient *client;
 @property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> rootAppsListSource, rootServicesListSource;
 @property (nonatomic, strong) AppsListViewSource *appsListSource;
 @property (nonatomic, strong) ServicesListViewSource *servicesListSource;
@@ -107,7 +110,7 @@
 
 @implementation TargetController
 
-@synthesize target, targetView, breadcrumbController, title, apps, client, appsListSource, servicesListSource, rootAppsListSource, rootServicesListSource;
+@synthesize target, targetView, breadcrumbController, title, apps, client, appsListSource, servicesListSource, rootAppsListSource, rootServicesListSource, targetSummary;
 
 - (id<BreadcrumbItem>)breadcrumbItem {
     return self;
@@ -119,11 +122,14 @@
         
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(managedObjectContextNotification:) name:NSManagedObjectContextObjectsDidChangeNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(managedObjectContextNotification:) name:NSManagedObjectContextDidSaveNotification object:nil];
+        
+        ((AppDelegate *)[NSApplication sharedApplication].delegate).targetController = self;
     }
     return self;
 }
 
 - (void)dealloc {
+    ((AppDelegate *)[NSApplication sharedApplication].delegate).targetController = nil;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -175,8 +181,20 @@
     
     self.associatedDisposable = [[[RACSubscribable combineLatest:subscriables] showLoadingViewInView:self.view] subscribeNext:^ (id x) {
         RACTuple *t = (RACTuple *)x;
+        self.targetSummary = [[TargetSummary alloc] init];
+
         appsListSource.apps = t.first;
         servicesListSource.services = t.second;
+        
+        targetSummary.appCount = appsListSource.apps.count;
+        targetSummary.totalMemoryMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
+            return [NSNumber numberWithInt:(int)((FoundryApp *)i).memory + [acc intValue]];
+        } seed:@0] intValue];
+        
+        targetSummary.totalDiskMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
+            return [NSNumber numberWithInt:(int)((FoundryApp *)i).disk + [acc intValue]];
+        } seed:@0] intValue];
+        
         [targetView.deploymentsList reloadData];
         [targetView.servicesList reloadData];
         targetView.needsLayout = YES;
@@ -234,80 +252,23 @@
 }
 
 - (void)createNewService {
-    ItemsController *servicesInfoController = [[ItemsController alloc] init];
-    servicesInfoController.dataSource = [[ServiceInfoItemsDataSource alloc] initWithClient:self.client];
-    
-    __block WizardController *wizardController;
-    
-    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:servicesInfoController commitBlock:^{
-        FoundryServiceInfo *serviceInfo = [servicesInfoController.arrayController.selectedObjects objectAtIndex:0];
-        
-        FoundryService *service = [[FoundryService alloc] init];
-        service.name = serviceInfo.vendor;
-        service.vendor = serviceInfo.vendor;
-        service.version = serviceInfo.version;
-        service.type = serviceInfo.type;
-        
-        ServicePropertiesController *servicePropertiesController = [[ServicePropertiesController alloc] initWithClient:self.client];
-        servicePropertiesController.title = @"Create service";
-        servicePropertiesController.service = service;
-        
-        [wizardController pushViewController:servicePropertiesController animated:YES];
-    } rollbackBlock:nil];
-    
-    wizardItemsController.title = @"Create new service";
-    wizardItemsController.commitButtonTitle = @"Next";
-    
-    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
-    [wizardController presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
-        if (returnCode == NSOKButton)
-            [self updateApps];
-    }];
-
-}
-
-- (ItemsController *)createAppItemsController {
-    ItemsController *appsController = [[ItemsController alloc] init];
-    appsController.dataSource = [[AppItemsDataSource alloc] init];
-    return appsController;
+    [((AppDelegate *)[NSApplication sharedApplication].delegate) newService:nil];
 }
 
 - (void)createNewDeployment {
-    NSError *error;
-    if (![[ThorBackend shared] getConfiguredApps:&error].count)
-        [self presentNoConfiguredAppsDialog];
-    
-    __block WizardController *wizardController;
-    
-    ItemsController *appsController = [self createAppItemsController];
-    
-    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
-        App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
-        Deployment *deployment = [Deployment deploymentWithApp:app target:target];
-        DeploymentPropertiesController *deploymentController = [DeploymentPropertiesController deploymentPropertiesControllerWithDeployment:deployment];
-        deploymentController.title = @"Create Deployment";
-        [wizardController pushViewController:deploymentController animated:YES];
-    } rollbackBlock:nil];
-    
-    wizardItemsController.title = @"Choose App";
-    wizardItemsController.commitButtonTitle = @"Next";
-    
-    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
-    [wizardController presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
-        if (returnCode == NSOKButton)
-            [self updateApps];
-    }];
+    [((AppDelegate *)[NSApplication sharedApplication].delegate) newDeployment:nil];
 }
 
 - (void)createDeploymentForApp:(FoundryApp *)foundryApp {
     __block WizardController *wizardController;
     
-    ItemsController *appsController = [self createAppItemsController];
+    AppDelegate *appDelegate = ((AppDelegate *)[NSApplication sharedApplication].delegate);
     
-    WizardItemsController *wizardItemsController = [[WizardItemsController alloc] initWithItemsController:appsController commitBlock:^{
-        App *app = [appsController.arrayController.selectedObjects objectAtIndex:0];
+    TableController *tableController = [appDelegate createAppTableController];
+    
+    WizardTableController *wizardTableController = [[WizardTableController alloc] initWithTableController:tableController commitBlock:^{
         
-        Deployment *deployment = [Deployment deploymentWithApp:app target:self.target];
+        Deployment *deployment = [Deployment deploymentWithApp:appDelegate.tableSelectedApp target:self.target];
         deployment.name = foundryApp.name;
         
         NSError *error;
@@ -319,55 +280,14 @@
         [wizardController dismissWithReturnCode:NSOKButton];
     } rollbackBlock:nil];
     
-    wizardItemsController.title = @"Associate deployment with app";
-    wizardItemsController.commitButtonTitle = @"Done";
+    wizardTableController.title = @"Associate deployment with app";
+    wizardTableController.commitButtonTitle = @"Done";
     
-    wizardController = [[WizardController alloc] initWithRootViewController:wizardItemsController];
+    wizardController = [[WizardController alloc] initWithRootViewController:wizardTableController];
     [wizardController presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
         if (returnCode == NSOKButton)
             [self updateApps];
     }];
-}
-
-- (void)editClicked:(id)sender {
-    TargetPropertiesController *targetPropertiesController = [[TargetPropertiesController alloc] init];
-    targetPropertiesController.editing = YES;
-    targetPropertiesController.target = self.target;
-    targetPropertiesController.title = @"Edit Cloud";
-    
-    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:targetPropertiesController];
-    wizardController.isSinglePage = YES;
-    [wizardController presentModalForWindow:self.view.window didEndBlock:^ (NSInteger returnCode) {
-        if (returnCode == NSOKButton)
-            [self updateApps];
-    }];
-}
-
-- (void)presentNoConfiguredAppsDialog {
-    NSAlert *alert = [NSAlert noConfiguredAppsDialog];
-    [alert presentSheetModalForWindow:self.view.window didEndBlock:nil];
-}
-
-- (void)presentConfirmDeletionDialog {
-    NSAlert *alert = [NSAlert confirmDeleteTargetDialog];
-    
-    [alert presentSheetModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
-        if (returnCode == NSAlertDefaultReturn) {
-            [[ThorBackend sharedContext] deleteObject:target];
-            NSError *error;
-            
-            if (![[ThorBackend sharedContext] save:&error]) {
-                [NSApp presentError:error];
-                return;
-            }
-            
-            [self.breadcrumbController popViewControllerAnimated:YES];
-        }
-    }];
-}
-
-- (void)deleteClicked:(id)sender {
-    [self presentConfirmDeletionDialog];
 }
 
 @end

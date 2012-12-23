@@ -1,18 +1,10 @@
 
 @interface TargetPropertiesView : NSView
 
-@property (nonatomic, strong) IBOutlet NSTextField 
-    *windowLabel,
-    *displayNameLabel,
-    *displayNameField,
+@property (nonatomic, strong) IBOutlet NSTextField
     *hostnameLabel,
-    *hostnameField, 
-    *emailLabel,
-    *emailField, 
-    *passwordLabel,
-    *passwordField;
+    *hostnameField;
 
-@property (nonatomic, strong) IBOutlet NSButton *confirmButton, *cancelButton;
-@property (nonatomic, strong) IBOutlet NSView *fieldContainer, *buttonContainer;
+@property (nonatomic, assign) BOOL hostnameHidden;
 
 @end
