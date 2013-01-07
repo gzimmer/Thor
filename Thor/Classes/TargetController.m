@@ -5,13 +5,14 @@
 #import "AppCell.h"
 #import "ServiceCell.h"
 #import "NoResultsListViewDataSource.h"
-#import "RACSubscribable+Extensions.h"
+#import "RACSignal+Extensions.h"
 #import "Sequence.h"
 #import "DeploymentPropertiesController.h"
 #import "AddItemListViewSource.h"
 #import "NSAlert+Dialogs.h"
 #import "TableController.h"
 #import "AppDelegate.h"
+#import <ReactiveCocoa/EXTScope.h>
 
 @implementation TargetSummary
 
@@ -29,7 +30,7 @@
 
 @interface AppsListViewSource : NSObject <ListViewDataSource, ListViewDelegate>
 
-@property (nonatomic, strong) NSArray *apps;
+@property (nonatomic, copy) NSArray *apps;
 @property (nonatomic, weak) id delegate;
 
 @end
@@ -47,9 +48,9 @@
     FoundryApp *app = apps[row];
     cell.app = app;
     cell.button.hidden = ![delegate showsAccessoryButtonForApp:app];
-    [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    cell.button.rac_command = [RACCommand commandWithBlock:^(id value) {
         [delegate accessoryButtonClickedForApp:app];
-    }]];
+    }];
     return cell;
 }
 
@@ -69,7 +70,7 @@
 
 @interface ServicesListViewSource : NSObject <ListViewDataSource, ListViewDelegate>
 
-@property (nonatomic, strong) NSArray *services;
+@property (nonatomic, copy) NSArray *services;
 @property (nonatomic, weak) id delegate;
 
 @end
@@ -86,9 +87,9 @@
     ServiceCell *cell = [[ServiceCell alloc] initWithFrame:NSZeroRect];
     FoundryService *service = services[row];
     cell.service = service;
-    [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    cell.button.rac_command = [RACCommand commandWithBlock:^(id value) {
         [delegate accessoryButtonClickedForService:service];
-    }]];
+    }];
     return cell;
 }
 
@@ -101,7 +102,7 @@
 
 @interface TargetController ()
 
-@property (nonatomic, strong) NSArray *apps;
+@property (nonatomic) id signalResult;
 @property (nonatomic, strong) id<ListViewDataSource, ListViewDelegate> rootAppsListSource, rootServicesListSource;
 @property (nonatomic, strong) AppsListViewSource *appsListSource;
 @property (nonatomic, strong) ServicesListViewSource *servicesListSource;
@@ -110,7 +111,7 @@
 
 @implementation TargetController
 
-@synthesize target, targetView, breadcrumbController, title, apps, client, appsListSource, servicesListSource, rootAppsListSource, rootServicesListSource, targetSummary;
+@synthesize target, targetView, breadcrumbController, title, client, appsListSource, servicesListSource, rootAppsListSource, rootServicesListSource, targetSummary;
 
 - (id<BreadcrumbItem>)breadcrumbItem {
     return self;
@@ -154,7 +155,6 @@
     noAppResultsSource.source = appsListSource;
     AddItemListViewSource *addDeploymentSource = [[AddItemListViewSource alloc] initWithTitle:@"New deployment…"];
     addDeploymentSource.source = noAppResultsSource;
-    addDeploymentSource.action = ^ { [self createNewDeployment]; };
     self.rootAppsListSource = addDeploymentSource;
     
     self.targetView.deploymentsList.dataSource = rootAppsListSource;
@@ -166,41 +166,45 @@
     noServiceResultsSource.source = servicesListSource;
     AddItemListViewSource *addServiceSource = [[AddItemListViewSource alloc] initWithTitle:@"New service…"];
     addServiceSource.source = noServiceResultsSource;
-    addServiceSource.action = ^ { [self createNewService]; };
     
     self.rootServicesListSource = addServiceSource;
     
     self.targetView.servicesList.dataSource = rootServicesListSource;
     self.targetView.servicesList.delegate = rootServicesListSource;
+    
+    @weakify(self);
+    addDeploymentSource.action = ^ {
+        @strongify(self);
+        [self createNewDeployment];
+    };
+    addServiceSource.action = ^ {
+        @strongify(self);
+        [self createNewService];
+    };
+}
+
+- (void)setSignalResult:(id)value {
+    RACTuple *t = (RACTuple *)value;
+    appsListSource.apps = t.first;
+    servicesListSource.services = t.second;
+    
+    self.targetSummary = [[TargetSummary alloc] init];
+    targetSummary.appCount = appsListSource.apps.count;
+    targetSummary.totalMemoryMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
+        return [NSNumber numberWithInt:(int)((FoundryApp *)i).memory + [acc intValue]];
+    } seed:@0] intValue];
+    targetSummary.totalDiskMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
+        return [NSNumber numberWithInt:(int)((FoundryApp *)i).disk + [acc intValue]];
+    } seed:@0] intValue];
+    
+    [targetView.deploymentsList reloadData];
+    [targetView.servicesList reloadData];
+    targetView.needsLayout = YES;
 }
 
 - (void)updateApps {
-    self.client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:target]];
-    
-    NSArray *subscriables = @[ [client getApps], [client getServices] ];
-    
-    self.associatedDisposable = [[[RACSubscribable combineLatest:subscriables] showLoadingViewInView:self.view] subscribeNext:^ (id x) {
-        RACTuple *t = (RACTuple *)x;
-        self.targetSummary = [[TargetSummary alloc] init];
-
-        appsListSource.apps = t.first;
-        servicesListSource.services = t.second;
-        
-        targetSummary.appCount = appsListSource.apps.count;
-        targetSummary.totalMemoryMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
-            return [NSNumber numberWithInt:(int)((FoundryApp *)i).memory + [acc intValue]];
-        } seed:@0] intValue];
-        
-        targetSummary.totalDiskMegabytes = [[appsListSource.apps reduce:^id(id acc, id i) {
-            return [NSNumber numberWithInt:(int)((FoundryApp *)i).disk + [acc intValue]];
-        } seed:@0] intValue];
-        
-        [targetView.deploymentsList reloadData];
-        [targetView.servicesList reloadData];
-        targetView.needsLayout = YES;
-    } error:^(NSError *error) {
-        [NSApp presentError:error];
-    }];
+    self.client = [FoundryClient clientWithEndpoint:[FoundryEndpoint endpointWithTarget:target]];
+    RAC(self.signalResult) = [[RACSignal combineLatest:@[ [client getApps], [client getServices] ]] showLoadingViewInView:self.view];
 }
 
 - (void)viewWillAppear {

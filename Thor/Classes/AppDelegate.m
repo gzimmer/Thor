@@ -8,7 +8,7 @@
 #import "TargetPropertiesController.h"
 #import "NSAlert+Dialogs.h"
 #import "Sequence.h"
-#import "RACSubscribable+Extensions.h"
+#import "RACSignal+Extensions.h"
 #import "DeploymentPropertiesController.h"
 #import "ServicePropertiesController.h"
 #import "NSObject+AssociateDisposable.h"
@@ -97,9 +97,9 @@
 }
 
 - (TableController *)createAppTableController {
-    return [[TableController alloc] initWithSubscribable:[[RACSubscribable performBlockInBackground:^ id {
+    return [[TableController alloc] initWithSignal:[[RACSignal performBlockInBackground:^ id {
         return [[ThorBackend shared] getConfiguredApps:nil];
-    }] select:^id(id configuredApps) {
+    }] map:^id(id configuredApps) {
         return [configuredApps map:^id(id x) {
             App *app = (App *)x;
             
@@ -144,8 +144,9 @@
 - (void)newTarget:(id)sender {
     TargetPropertiesController *targetPropertiesController = [[TargetPropertiesController alloc] init];
     targetPropertiesController.target = [Target targetInsertedIntoManagedObjectContext:nil];
-    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:targetPropertiesController];
     targetPropertiesController.title = @"Create Cloud";
+    WizardController *wizardController = [[WizardController alloc] initWithRootViewController:targetPropertiesController];
+    wizardController.isSinglePage = YES;
     [wizardController presentModalForWindow:window didEndBlock:^ (NSInteger returnCode) {
         if (returnCode == NSOKButton)
             [sourceListController updateAppsAndTargets];
@@ -217,7 +218,7 @@
     __block WizardController *wizardController;
     __block FoundryServiceInfo *selectedServiceInfo;
     
-    TableController *tableController = [[TableController alloc] initWithSubscribable:[[targetController.client getServicesInfo] select:^id(id servicesInfo) {
+    TableController *tableController = [[TableController alloc] initWithSignal:[[targetController.client getServicesInfo] map:^id(id servicesInfo) {
         return [servicesInfo map:^id(id x) {
             FoundryServiceInfo *serviceInfo = (FoundryServiceInfo *)x;
             
@@ -261,53 +262,49 @@
 }
 
 - (IBAction)bindService:(id)sender {
-    selectedDeployment.associatedDisposable = [[targetController.client getServices] subscribeNext:^(id x) {
-        NSArray *services = (NSArray *)x;
+    __block WizardController *wizard;
+    __block FoundryService *selectedService;
+    
+    TableController *tableController = [[TableController alloc] initWithSignal:[[targetController.client getServices] map:^id(id lesServices) {
+        
+        NSArray *services = lesServices;
         
         if (!services.count) {
             NSAlert *alert = [NSAlert noProvisionedServicesDialog];
+            [wizard dismissWithReturnCode:NSCancelButton];
             [alert presentSheetModalForWindow:window didEndBlock:nil];
-            return;
+            return @[];
         }
         
-        __block WizardController *wizard;
-        __block FoundryService *selectedService;
-        
-        TableController *tableController = [[TableController alloc] initWithSubscribable:[[RACSubscribable return:services] select:^id(id lesServices) {
-            return [lesServices map:^id(id x) {
-                FoundryService *service = (FoundryService *)x;
-                
-                TableItem *item = [[TableItem alloc] init];
-                item.view = ^ NSView *(NSTableView *tableView, NSTableColumn *column, NSInteger row) {
-                    TableCell *cell = [[TableCell alloc] init];
-                    cell.label.stringValue = [NSString stringWithFormat:@"%@ %@ v%@", service.name, service.vendor, service.version];
-                    return cell;
-                };
-                item.selected = ^ {
-                    selectedService = service;
-                };
-                return item;
-            }];
-        }]];
-        
-        WizardTableController *wizardTableController = [[WizardTableController alloc] initWithTableController:tableController commitBlock:^{
-            selectedDeployment.associatedDisposable = [[selectedDeployment updateByAddingServiceNamed:selectedService.name] subscribeCompleted:^{
-                [wizard dismissWithReturnCode:NSOKButton];
-            }];
-        } rollbackBlock:nil];
-        
-        wizardTableController.title = @"Bind service";
-        wizardTableController.commitButtonTitle = @"OK";
-        
-        wizard = [[WizardController alloc] initWithRootViewController:wizardTableController];
-        wizard.isSinglePage = YES;
-        [wizard presentModalForWindow:window didEndBlock:^(NSInteger returnCode) {
-            [selectedDeployment updateAppAndStatsAfterSubscribable:nil];
+        return [lesServices map:^id(id x) {
+            FoundryService *service = (FoundryService *)x;
+            
+            TableItem *item = [[TableItem alloc] init];
+            item.view = ^ NSView *(NSTableView *tableView, NSTableColumn *column, NSInteger row) {
+                TableCell *cell = [[TableCell alloc] init];
+                cell.label.stringValue = [NSString stringWithFormat:@"%@ %@ v%@", service.name, service.vendor, service.version];
+                return cell;
+            };
+            item.selected = ^ {
+                selectedService = service;
+            };
+            return item;
         }];
-    } error:^(NSError *error) {
-        [NSApp presentError:error];
-    } completed:^{
-        
+    }]];
+    
+    WizardTableController *wizardTableController = [[WizardTableController alloc] initWithTableController:tableController commitBlock:^{
+        selectedDeployment.associatedDisposable = [[selectedDeployment updateByAddingServiceNamed:selectedService.name] subscribeCompleted:^{
+            [wizard dismissWithReturnCode:NSOKButton];
+        }];
+    } rollbackBlock:nil];
+    
+    wizardTableController.title = @"Bind service";
+    wizardTableController.commitButtonTitle = @"OK";
+    
+    wizard = [[WizardController alloc] initWithRootViewController:wizardTableController];
+    wizard.isSinglePage = YES;
+    [wizard presentModalForWindow:window didEndBlock:^(NSInteger returnCode) {
+        [selectedDeployment updateAppAndStatsAfterSignal:nil];
     }];
 }
 
