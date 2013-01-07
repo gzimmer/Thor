@@ -13,6 +13,7 @@
 #import "NSAlert+Dialogs.h"
 #import "TableController.h"
 #import "AppDelegate.h"
+#import <ReactiveCocoa/EXTScope.h>
 
 @interface NSObject (BoundServicesListViewSourceDelegate)
 
@@ -23,7 +24,7 @@
 
 @interface BoundServicesListViewSource : NSObject <ListViewDataSource, ListViewDelegate>
 
-@property (nonatomic, strong) NSArray *services;
+@property (nonatomic, copy) NSArray *services;
 @property (nonatomic, weak) id delegate;
 
 @end
@@ -41,7 +42,7 @@
     FoundryService *service = services[row];
     cell.service = service;
 //    cell.button.hidden = ![delegate showsAccessoryButtonForApp:app];
-    cell.button.rac_command =[RACCommand commandWithBlock:^(id value) {
+    cell.button.rac_command = [RACCommand commandWithBlock:^(id value) {
         [delegate accessoryButtonClickedForService:service];
     }];
     return cell;
@@ -80,7 +81,7 @@ static NSArray *instanceColumns = nil;
         self.title = lAppName;
         self.appName = lAppName;
         self.deployment = leDeployment;
-        self.client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
+        self.client = [FoundryClient clientWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
         
         // XXX horrible
         ((AppDelegate *)[NSApplication sharedApplication].delegate).selectedDeployment = self;
@@ -101,31 +102,36 @@ static NSArray *instanceColumns = nil;
     return [[DeploymentController alloc] initWithTarget:target appName:name deployment:nil];
 }
 
+- (RACSignal *)appAndStatsSignal {
+    @weakify(self)
+    return [RACSignal combineLatest:@[
+        [[client getStatsForAppWithName:appName] doNext:^(id x) {
+            @strongify(self);
+            self.instanceStats = x;
+        }],
+        [[client getAppWithName:appName] continueAfter:^RACSignal *(id x) {
+            @strongify(self);
+            self.app = x;
+            if (self.app.services.count) {
+                NSArray *serviceSignals = [self.app.services map:^ id (id s) {
+                    return [self.client getServiceWithName:s];
+                }];
+                return [[RACSignal combineLatest:serviceSignals] doNext:^(id x) {
+                    self.boundServicesSource.services = [(RACTuple *)x allObjects];
+                }];
+            }
+            else {
+                self.boundServicesSource.services = @[];
+                return [RACSignal return:[RACUnit defaultUnit]];
+            }
+        }]
+    ]];
+}
+
 - (void)updateAppAndStatsAfterSignal:(RACSignal *)antecedent {
     NSError *error = nil;
     
-    NSArray *signals = @[
-    [[client getStatsForAppWithName:appName] doNext:^(id x) {
-        self.instanceStats = x;
-    }],
-    [[client getAppWithName:appName] continueAfter:^RACSignal *(id x) {
-        self.app = x;
-        if (self.app.services.count) {
-            NSArray *serviceSignals = [self.app.services map:^ id (id s) {
-                return [client getServiceWithName:s];
-            }];
-            return [[RACSignal combineLatest:serviceSignals] doNext:^(id x) {
-                boundServicesSource.services = [(RACTuple *)x allObjects];
-            }];
-        }
-        else {
-            boundServicesSource.services = @[];
-            return [RACSignal return:[RACUnit defaultUnit]];
-        }
-    }]];
-    
-    
-    RACSignal *call = [RACSignal combineLatest:signals];
+    RACSignal *call = [self appAndStatsSignal];
     
     if (!app)
         call = [call showLoadingViewInView:self.view];
@@ -133,9 +139,11 @@ static NSArray *instanceColumns = nil;
     if (antecedent)
         call = [antecedent continueWith:call];
     
+    @weakify(self);
     self.associatedDisposable = [call subscribeError:^ (NSError *error) {
+        @strongify(self);
         if ([error.domain isEqual:@"SMWebRequest"] && error.code == 404) {
-            if (deployment)
+            if (self.deployment)
                 [self presentMissingDeploymentDialog];
             else
                 [self presentDeploymentNotFoundDialog];
@@ -145,9 +153,10 @@ static NSArray *instanceColumns = nil;
             [self updateAppAndStatsAfterSignal:nil];
         }
     } completed:^ {
-        [deploymentView.instancesGrid reloadData];
-        [deploymentView.servicesList reloadData];
-        deploymentView.needsLayout = YES;
+        @strongify(self);
+        [self.deploymentView.instancesGrid reloadData];
+        [self.deploymentView.servicesList reloadData];
+        self.deploymentView.needsLayout = YES;
     }];
 }
 
@@ -167,7 +176,11 @@ static NSArray *instanceColumns = nil;
     
     AddItemListViewSource *addBoundServiceSource = [[AddItemListViewSource alloc] initWithTitle:@"Bind service…"];
     addBoundServiceSource.source = noResultsSource;
-    addBoundServiceSource.action = ^ { [self presentBindServiceDialog]; };
+    @weakify(self);
+    addBoundServiceSource.action = ^ {
+        @strongify(self);
+        [self presentBindServiceDialog];
+    };
     
     self.rootBoundServicesSource = addBoundServiceSource;
     

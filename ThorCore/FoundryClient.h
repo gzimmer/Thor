@@ -2,11 +2,11 @@
 
 @interface RestEndpoint : NSObject
 
-- (RACSignal *)requestWithHost:(NSString *)host method:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body;
+- (RACSignal *)requestSignalWithURLRequest:(NSURLRequest *)urlRequest;
 
 @end
 
-@interface FoundryEndpoint : NSObject
+@interface FoundryEndpoint : NSObject <NSCopying>
 
 @property (nonatomic, copy) NSString *hostname, *email, *password;
 
@@ -150,6 +150,8 @@ const static NSInteger FoundryClientInvalidCredentials = 1;
 @interface FoundryClient : NSObject <FoundryClient>
 
 @property (nonatomic, strong) FoundryEndpoint *endpoint;
+
++ (FoundryClient *)clientWithEndpoint:(FoundryEndpoint *)endpoint;
 
 - (id)initWithEndpoint:(FoundryEndpoint *)endpoint;
 
