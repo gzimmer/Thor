@@ -1,6 +1,6 @@
 #import "DeploymentController.h"
 #import "NSObject+AssociateDisposable.h"
-#import "RACSubscribable+Extensions.h"
+#import "RACSignal+Extensions.h"
 #import "GridView.h"
 #import "FileSizeInMBTransformer.h"
 #import "DeploymentPropertiesController.h"
@@ -13,6 +13,7 @@
 #import "NSAlert+Dialogs.h"
 #import "TableController.h"
 #import "AppDelegate.h"
+#import <ReactiveCocoa/EXTScope.h>
 
 @interface NSObject (BoundServicesListViewSourceDelegate)
 
@@ -23,7 +24,7 @@
 
 @interface BoundServicesListViewSource : NSObject <ListViewDataSource, ListViewDelegate>
 
-@property (nonatomic, strong) NSArray *services;
+@property (nonatomic, copy) NSArray *services;
 @property (nonatomic, weak) id delegate;
 
 @end
@@ -41,9 +42,9 @@
     FoundryService *service = services[row];
     cell.service = service;
 //    cell.button.hidden = ![delegate showsAccessoryButtonForApp:app];
-    [cell.button addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    cell.button.rac_command = [RACCommand commandWithBlock:^(id value) {
         [delegate accessoryButtonClickedForService:service];
-    }]];
+    }];
     return cell;
 }
 
@@ -80,7 +81,7 @@ static NSArray *instanceColumns = nil;
         self.title = lAppName;
         self.appName = lAppName;
         self.deployment = leDeployment;
-        self.client = [[FoundryClient alloc] initWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
+        self.client = [FoundryClient clientWithEndpoint:[FoundryEndpoint endpointWithTarget:leTarget]];
         
         // XXX horrible
         ((AppDelegate *)[NSApplication sharedApplication].delegate).selectedDeployment = self;
@@ -101,31 +102,36 @@ static NSArray *instanceColumns = nil;
     return [[DeploymentController alloc] initWithTarget:target appName:name deployment:nil];
 }
 
-- (void)updateAppAndStatsAfterSubscribable:(RACSubscribable *)antecedent {
+- (RACSignal *)appAndStatsSignal {
+    @weakify(self)
+    return [RACSignal combineLatest:@[
+        [[client getStatsForAppWithName:appName] doNext:^(id x) {
+            @strongify(self);
+            self.instanceStats = x;
+        }],
+        [[client getAppWithName:appName] continueAfter:^RACSignal *(id x) {
+            @strongify(self);
+            self.app = x;
+            if (self.app.services.count) {
+                NSArray *serviceSignals = [self.app.services map:^ id (id s) {
+                    return [self.client getServiceWithName:s];
+                }];
+                return [[RACSignal combineLatest:serviceSignals] doNext:^(id x) {
+                    self.boundServicesSource.services = [(RACTuple *)x allObjects];
+                }];
+            }
+            else {
+                self.boundServicesSource.services = @[];
+                return [RACSignal return:[RACUnit defaultUnit]];
+            }
+        }]
+    ]];
+}
+
+- (void)updateAppAndStatsAfterSignal:(RACSignal *)antecedent {
     NSError *error = nil;
     
-    NSArray *subscribables = @[
-    [[client getStatsForAppWithName:appName] doNext:^(id x) {
-        self.instanceStats = x;
-    }],
-    [[client getAppWithName:appName] continueAfter:^RACSubscribable *(id x) {
-        self.app = x;
-        if (self.app.services.count) {
-            NSArray *serviceSubscribables = [self.app.services map:^ id (id s) {
-                return [client getServiceWithName:s];
-            }];
-            return [[RACSubscribable combineLatest:serviceSubscribables] doNext:^(id x) {
-                boundServicesSource.services = [(RACTuple *)x allObjects];
-            }];
-        }
-        else {
-            boundServicesSource.services = @[];
-            return [RACSubscribable return:[RACUnit defaultUnit]];
-        }
-    }]];
-    
-    
-    RACSubscribable *call = [RACSubscribable combineLatest:subscribables];
+    RACSignal *call = [self appAndStatsSignal];
     
     if (!app)
         call = [call showLoadingViewInView:self.view];
@@ -133,21 +139,24 @@ static NSArray *instanceColumns = nil;
     if (antecedent)
         call = [antecedent continueWith:call];
     
+    @weakify(self);
     self.associatedDisposable = [call subscribeError:^ (NSError *error) {
+        @strongify(self);
         if ([error.domain isEqual:@"SMWebRequest"] && error.code == 404) {
-            if (deployment)
+            if (self.deployment)
                 [self presentMissingDeploymentDialog];
             else
                 [self presentDeploymentNotFoundDialog];
         }
         else {
             [NSApp presentError:error];
-            [self updateAppAndStatsAfterSubscribable:nil];
+            [self updateAppAndStatsAfterSignal:nil];
         }
     } completed:^ {
-        [deploymentView.instancesGrid reloadData];
-        [deploymentView.servicesList reloadData];
-        deploymentView.needsLayout = YES;
+        @strongify(self);
+        [self.deploymentView.instancesGrid reloadData];
+        [self.deploymentView.servicesList reloadData];
+        self.deploymentView.needsLayout = YES;
     }];
 }
 
@@ -167,7 +176,11 @@ static NSArray *instanceColumns = nil;
     
     AddItemListViewSource *addBoundServiceSource = [[AddItemListViewSource alloc] initWithTitle:@"Bind service…"];
     addBoundServiceSource.source = noResultsSource;
-    addBoundServiceSource.action = ^ { [self presentBindServiceDialog]; };
+    @weakify(self);
+    addBoundServiceSource.action = ^ {
+        @strongify(self);
+        [self presentBindServiceDialog];
+    };
     
     self.rootBoundServicesSource = addBoundServiceSource;
     
@@ -176,7 +189,7 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)viewWillAppear {
-    [self updateAppAndStatsAfterSubscribable:nil];
+    [self updateAppAndStatsAfterSignal:nil];
 }
 
 - (void)presentDeploymentNotFoundDialog {
@@ -228,8 +241,8 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)recreateDeployment {
-    RACSubscribable *createApp = [client createApp:[FoundryApp appWithDeployment:deployment]];
-    [self updateAppAndStatsAfterSubscribable:createApp];
+    RACSignal *createApp = [client createApp:[FoundryApp appWithDeployment:deployment]];
+    [self updateAppAndStatsAfterSignal:createApp];
 }
 
 - (id<BreadcrumbItem>)breadcrumbItem {
@@ -314,7 +327,7 @@ static NSArray *instanceColumns = nil;
     WizardController *wizard = [[WizardController alloc] initWithRootViewController:deploymentPropertiesController];
     wizard.isSinglePage = YES;
     [wizard presentModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
-        [self updateAppAndStatsAfterSubscribable:nil];
+        [self updateAppAndStatsAfterSignal:nil];
     }];
 }
 
@@ -322,16 +335,16 @@ static NSArray *instanceColumns = nil;
     [self presentConfirmDeletionDialog];
 }
 
-- (RACSubscribable *)updateWithState:(FoundryAppState)state {
-    return [[client getAppWithName:app.name] continueAfter:^RACSubscribable *(id x) {
+- (RACSignal *)updateWithState:(FoundryAppState)state {
+    return [[client getAppWithName:app.name] continueAfter:^RACSignal *(id x) {
         FoundryApp *latestApp = (FoundryApp *)x;
         latestApp.state = state;
         return [client updateApp:latestApp];
     }];
 }
 
-- (RACSubscribable *)updateByAddingServiceNamed:(NSString *)name {
-    return [[client getAppWithName:app.name] continueAfter:^RACSubscribable *(id x) {
+- (RACSignal *)updateByAddingServiceNamed:(NSString *)name {
+    return [[client getAppWithName:app.name] continueAfter:^RACSignal *(id x) {
         FoundryApp *latestApp = (FoundryApp *)x;
         if (![latestApp.services containsObject:name])
             latestApp.services = [latestApp.services arrayByAddingObject:name];
@@ -339,8 +352,8 @@ static NSArray *instanceColumns = nil;
     }];
 }
 
-- (RACSubscribable *)updateByRemovingServiceNamed:(NSString *)name {
-    return [[client getAppWithName:app.name] continueAfter:^RACSubscribable *(id x) {
+- (RACSignal *)updateByRemovingServiceNamed:(NSString *)name {
+    return [[client getAppWithName:app.name] continueAfter:^RACSignal *(id x) {
         FoundryApp *latestApp = (FoundryApp *)x;
         latestApp.services = [latestApp.services filter:^BOOL(id n) {
             return ![n isEqual:name];
@@ -350,19 +363,15 @@ static NSArray *instanceColumns = nil;
 }
 
 - (void)startClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStarted]  animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
+    [self updateAppAndStatsAfterSignal:[[self updateWithState:FoundryAppStateStarted]  animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)stopClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[[self updateWithState:FoundryAppStateStopped] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
+    [self updateAppAndStatsAfterSignal:[[self updateWithState:FoundryAppStateStopped] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)restartClicked:(id)sender {
-    [self updateAppAndStatsAfterSubscribable:[[[self updateWithState:FoundryAppStateStopped] continueWith:[self updateWithState:FoundryAppStateStarted]] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
-}
-
-- (void)serviceSelected:(FoundryService *)service {
-    NSLog(@"selected service %@", service);
+    [self updateAppAndStatsAfterSignal:[[[self updateWithState:FoundryAppStateStopped] continueWith:[self updateWithState:FoundryAppStateStarted]] animateProgressIndicator:self.deploymentView.stateProgressIndicator]];
 }
 
 - (void)presentBindServiceDialog {
@@ -377,7 +386,7 @@ static NSArray *instanceColumns = nil;
     NSAlert *alert = [NSAlert confirmUnbindServiceDialog];
     [alert presentSheetModalForWindow:self.view.window didEndBlock:^(NSInteger returnCode) {
         if (returnCode == NSAlertDefaultReturn) {
-            [self updateAppAndStatsAfterSubscribable:[self updateByRemovingServiceNamed:service.name]];
+            [self updateAppAndStatsAfterSignal:[self updateByRemovingServiceNamed:service.name]];
         }
     }];
 }

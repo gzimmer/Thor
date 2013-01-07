@@ -5,6 +5,7 @@
 #import "SBJson.h"
 #import "SHA1.h"
 #import "NSOutputStream+Writing.h"
+#import <ReactiveCocoa/EXTScope.h>
 
 NSString *FoundryClientErrorDomain = @"FoundryClientErrorDomain";
 
@@ -15,24 +16,8 @@ static id (^JsonParser)(id) = ^ id (id d) {
 
 @implementation RestEndpoint
 
-- (RACSubscribable *)requestWithHost:(NSString *)hostname method:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://%@%@", hostname, path]];
-    NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:6];
-    urlRequest.HTTPMethod = method;
-    
-    if ([body isKindOfClass:[NSInputStream class]]) {
-        urlRequest.HTTPBodyStream = (NSInputStream *)body;
-    }
-    else {
-        urlRequest.HTTPBody = [body JSONDataRepresentation];
-        NSMutableDictionary *newHeaders = headers ? [headers mutableCopy] : [NSMutableDictionary dictionary];
-        newHeaders[@"Content-Type"] = @"application/json";
-        headers = newHeaders;
-    }
-    
-    urlRequest.AllHTTPHeaderFields = headers;
-    
-    return [SMWebRequest requestSubscribableWithURLRequest:urlRequest dataParser:JsonParser];
+- (RACSignal *)requestSignalWithURLRequest:(NSURLRequest *)urlRequest {
+    return [SMWebRequest requestSignalWithURLRequest:urlRequest dataParser:JsonParser];
 }
 
 @end
@@ -55,44 +40,129 @@ static id (^JsonParser)(id) = ^ id (id d) {
 
 @interface FoundryEndpoint ()
 
-@property (nonatomic, copy) NSString *token;
+@property (nonatomic, strong) RACConnectableSignal *tokenSignal;
 @property (nonatomic, strong) RestEndpoint *endpoint;
+
+@end
+
+@interface NSURLRequest (Signing)
+
+@property (readonly) BOOL isSignedWithToken;
+
+@end
+
+@implementation NSURLRequest (Signing)
+
++ (NSURLRequest *)requestWithHost:(NSString *)hostname method:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
+    assert(hostname && hostname.length);
+    assert(method);
+    assert(path);
+    
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://%@%@", hostname, path]];
+    NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:6];
+    urlRequest.HTTPMethod = method;
+    urlRequest.AllHTTPHeaderFields = headers;
+    
+    if ([body isKindOfClass:[NSInputStream class]]) {
+        urlRequest.HTTPBodyStream = (NSInputStream *)body;
+    }
+    else {
+        urlRequest.HTTPBody = [body JSONDataRepresentation];
+        [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    }
+    
+    return urlRequest;
+}
+
++ (NSURLRequest *)tokenRequestWithHost:(NSString *)host email:(NSString *)email password:(NSString *)password {
+    assert(email && email.length);
+    assert(password);
+    
+    NSString *path = [NSString stringWithFormat:@"/users/%@/tokens", email];
+    NSDictionary *body = [NSDictionary dictionaryWithObject:password forKey:@"password"];
+    return [self requestWithHost:host method:@"POST" path:path headers:nil body:body];
+}
+
+- (BOOL)isSignedWithToken {
+    return [self valueForHTTPHeaderField:@"AUTHORIZATION"] != nil;
+}
+
+- (NSURLRequest *)signedRequestWithToken:(NSString *)token {
+    NSMutableURLRequest *result = [self mutableCopy];
+    [result setValue:token forHTTPHeaderField:@"AUTHORIZATION"];
+    return result;
+}
 
 @end
 
 @implementation FoundryEndpoint
 
-@synthesize hostname, email, password, token, endpoint;
+@synthesize hostname, email, password, tokenSignal, endpoint;
 
 - (id)init {
     if (self = [super init]) {
         self.endpoint = [[RestEndpoint alloc] init];
+        
+        @weakify(self);
+        self.tokenSignal = [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+            @strongify(self);
+            if (!self.email || !self.password) {
+                [self sendInvalidCredentialsError:subscriber];
+                return nil;
+            }
+        
+            return [[self.endpoint requestSignalWithURLRequest:[NSURLRequest tokenRequestWithHost:self.hostname email:self.email password:self.password]] subscribeNext:^(id x) {
+                [subscriber sendNext:x];
+            } error:^(NSError *error) {
+                if ([error.domain isEqual:@"SMWebRequest"]) {
+                    SMErrorResponse *errorResponse = error.userInfo[SMErrorResponseKey];
+                    if (errorResponse.response.statusCode == 403)
+                        [self sendInvalidCredentialsError:subscriber];
+                }
+                else [subscriber sendError:error];
+            } completed:^{
+                [subscriber sendCompleted];
+            }];
+                                             
+        }] multicast:[RACReplaySubject subject]];
     }
     return self;
 }
 
-- (RACSubscribable *)getToken {
-    NSString *path = [NSString stringWithFormat:@"/users/%@/tokens", email];
-    
-    return [RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
-        return [[self.endpoint requestWithHost:self.hostname method:@"POST" path:path headers:nil body:[NSDictionary dictionaryWithObject:password forKey:@"password"]] subscribeNext:^(id r) {
-            [subscriber sendNext:r];
-        } error:^(NSError *error) {
-            if ([error.domain isEqual:@"SMWebRequest"]) {
-                SMErrorResponse *errorResponse = error.userInfo[SMErrorResponseKey];
-                if (errorResponse.response.statusCode == 403) {
-                    [subscriber sendError:[FoundryClientError errorWithDomain:FoundryClientErrorDomain code:FoundryClientInvalidCredentials userInfo:nil]];
-                }
-            }
-            else [subscriber sendError:error];
-        } completed:^{
-            [subscriber sendCompleted];
-        }];
-    }];
+- (NSUInteger)hash {
+    return [[NSString stringWithFormat:@"%@%@%@", hostname, email, password] hash];
 }
 
-- (RACSubscribable *)verifyCredentials {
-    return [RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
+- (BOOL)isEqual:(id)object {
+    if (![object isKindOfClass:[FoundryEndpoint class]])
+        return NO;
+    
+    FoundryEndpoint *other = (FoundryEndpoint *)object;
+    return
+        [other.hostname isEqual:self.hostname] &&
+        [other.email isEqual:self.email] &&
+        [other.password isEqual:self.password];
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    FoundryEndpoint *result = [[FoundryEndpoint allocWithZone:zone] init];
+    result.hostname = self.hostname;
+    result.email = self.email;
+    result.password = self.password;
+    return result;
+}
+
+- (void)sendInvalidCredentialsError:(RACSubscriber *)subscriber {
+    [subscriber sendError:[FoundryClientError errorWithDomain:FoundryClientErrorDomain code:FoundryClientInvalidCredentials userInfo:nil]];
+}
+
+- (RACSignal *)getToken {
+    [tokenSignal connect];
+    return tokenSignal;
+}
+
+- (RACSignal *)verifyCredentials {
+    return [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         return [[self getToken] subscribeNext:^(id x) {
             [subscriber sendNext:[NSNumber numberWithBool:YES]];
         } error:^(NSError *error) {
@@ -108,26 +178,18 @@ static id (^JsonParser)(id) = ^ id (id d) {
     }];
 }
 
-// result is subscribable
-- (RACSubscribable *)getAuthenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
-    NSMutableDictionary *h = headers ? [headers mutableCopy] : [NSMutableDictionary dictionary];
+- (RACSignal *)requestSignalWithURLRequest:(NSURLRequest *)urlRequest {
+    if (urlRequest.isSignedWithToken)
+        return [SMWebRequest requestSignalWithURLRequest:urlRequest dataParser:JsonParser];
     
-    if (token) {
-        h[@"AUTHORIZATION"] = token;
-        return [RACSubscribable return:[self.endpoint requestWithHost:hostname method:method path:path headers:h body:body]];
-    }
-    
-    return [[self getToken] select:^ id (id t) {
-        self.token = ((NSDictionary *)t)[@"token"];
-        h[@"AUTHORIZATION"] = token;
-        return [self.endpoint requestWithHost:hostname method:method path:path headers:h body:body];
+    return [[self getToken] flattenMap:^RACStream *(id token) {
+        NSURLRequest *signedRequest = [urlRequest signedRequestWithToken:token[@"token"]];
+        return [self requestSignalWithURLRequest:signedRequest];
     }];
 }
 
-- (RACSubscribable *)authenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
-    return [[self getAuthenticatedRequestWithMethod:method path:path headers:headers body:body] selectMany:^ id<RACSubscribable> (id request) {
-        return request;
-    }];
+- (RACSignal *)authenticatedRequestWithMethod:(NSString *)method path:(NSString *)path headers:(NSDictionary *)headers body:(id)body {
+    return [self requestSignalWithURLRequest:[NSURLRequest requestWithHost:hostname method:method path:path headers:headers body:body]];
 }
 
 @end
@@ -626,9 +688,22 @@ NSString *FoundryPushStageString(FoundryPushStage stage) {
 
 @end
 
+static NSMutableDictionary *clients;
+
 @implementation FoundryClient
 
 @synthesize endpoint, token, slugService;
+
++ (void)initialize {
+    clients = [@{} mutableCopy];
+}
+
++ (FoundryClient *)clientWithEndpoint:(FoundryEndpoint *)endpoint {
+    if (![[clients allKeys] containsObject:endpoint])
+        clients[endpoint] = [[FoundryClient alloc] initWithEndpoint:endpoint];
+    
+    return clients[endpoint];
+}
 
 - (id)initWithEndpoint:(FoundryEndpoint *)lEndpoint {
     if (self = [super init]) {
@@ -638,42 +713,51 @@ NSString *FoundryPushStageString(FoundryPushStage stage) {
     return self;
 }
 
-- (RACSubscribable *)getApps {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/apps" headers:nil body:nil] select:^id(id apps) {
+- (RACSignal *)getApps {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/apps" headers:nil body:nil] map:^id(id apps) {
         return [(NSArray *)apps map:^ id (id app) {
             return [FoundryApp appWithDictionary:app];
         }];
     }];
 }
 
-- (RACSubscribable *)getStatsForAppWithName:(NSString *)name {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/apps/%@/stats", name] headers:nil body:nil] select:^id(id allStats) {
+- (RACSignal *)getStatsForAppWithName:(NSString *)name {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/apps/%@/stats", name] headers:nil body:nil] map:^id(id allStats) {
         return [((NSDictionary *)allStats).allKeys map:^ id (id key) {
             return [FoundryAppInstanceStats instantsStatsWithID:key dictionary:allStats[key]];
         }];
     }];
 }
 
-- (RACSubscribable *)getAppWithName:(NSString *)name {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/apps/%@", name] headers:nil body:nil] select:^id(id app) {
+- (RACSignal *)getAppWithName:(NSString *)name {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/apps/%@", name] headers:nil body:nil] map:^id(id app) {
         return [FoundryApp appWithDictionary:app];
     }];
 }
 
-- (RACSubscribable *)createApp:(FoundryApp *)app {
-    return [endpoint authenticatedRequestWithMethod:@"POST" path:@"/apps" headers:nil body:[app dictionaryRepresentation]];
+- (RACSignal *)ignoreTimeoutErrors:(RACSignal *)signal {
+    return [signal catch:^RACSignal *(NSError *error) {
+        if ([error.domain isEqual:NSURLErrorDomain] && error.code == NSURLErrorTimedOut) {
+            return [RACSignal return:@YES];
+        }
+        return [RACSignal error:error];
+    }];
 }
 
-- (RACSubscribable *)updateApp:(FoundryApp *)app {
-    return [endpoint authenticatedRequestWithMethod:@"PUT" path:[NSString stringWithFormat:@"/apps/%@", app.name] headers:nil body:[app dictionaryRepresentation]];
+- (RACSignal *)createApp:(FoundryApp *)app {
+    return [self ignoreTimeoutErrors:[endpoint authenticatedRequestWithMethod:@"POST" path:@"/apps" headers:nil body:[app dictionaryRepresentation]]];
 }
 
-- (RACSubscribable *)deleteAppWithName:(NSString *)name {
+- (RACSignal *)updateApp:(FoundryApp *)app {
+    return [self ignoreTimeoutErrors:[endpoint authenticatedRequestWithMethod:@"PUT" path:[NSString stringWithFormat:@"/apps/%@", app.name] headers:nil body:[app dictionaryRepresentation]]];
+}
+
+- (RACSignal *)deleteAppWithName:(NSString *)name {
     return [endpoint authenticatedRequestWithMethod:@"DELETE" path:[NSString stringWithFormat:@"/apps/%@", name] headers:nil body:nil];
 }
 
-- (RACSubscribable *)getServicesInfo {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/info/services" headers:nil body:nil] select:^id(id s) {
+- (RACSignal *)getServicesInfo {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/info/services" headers:nil body:nil] map:^id(id s) {
         NSDictionary *categories = (NSDictionary *)s;
         return [[categories allKeys] reduce:^id(id acc0, id i) {
             return [acc0 concat:[[categories[i] allKeys] reduce:^id(id acc1, id j) {
@@ -685,30 +769,30 @@ NSString *FoundryPushStageString(FoundryPushStage stage) {
     }];
 }
 
-- (RACSubscribable *)getServices {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/services" headers:nil body:nil] select:^id(id services) {
+- (RACSignal *)getServices {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:@"/services" headers:nil body:nil] map:^id(id services) {
         return [(NSArray *)services map:^ id (id service) {
             return [FoundryService serviceWithDictionary:service];
         }];
     }];
 }
 
-- (RACSubscribable *)getServiceWithName:(NSString *)name {
-    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/services/%@", name] headers:nil body:nil] select:^id(id service) {
+- (RACSignal *)getServiceWithName:(NSString *)name {
+    return [[endpoint authenticatedRequestWithMethod:@"GET" path:[NSString stringWithFormat:@"/services/%@", name] headers:nil body:nil] map:^id(id service) {
         return [FoundryService serviceWithDictionary:service];
     }];
 }
 
-- (RACSubscribable *)createService:(FoundryService *)service {
+- (RACSignal *)createService:(FoundryService *)service {
     return [endpoint authenticatedRequestWithMethod:@"POST" path:@"/services" headers:nil body:[service dictionaryRepresentation]];
 }
 
-- (RACSubscribable *)deleteServiceWithName:(NSString *)name {
+- (RACSignal *)deleteServiceWithName:(NSString *)name {
     return [endpoint authenticatedRequestWithMethod:@"DELETE" path:[NSString stringWithFormat:@"/services/%@", name] headers:nil body:nil];
 }
 
-- (RACSubscribable *)pushAppWithName:(NSString *)name fromLocalPath:(NSString *)localPath {
-    return [RACSubscribable createSubscribable:^RACDisposable *(id<RACSubscriber> subscriber) {
+- (RACSignal *)pushAppWithName:(NSString *)name fromLocalPath:(NSString *)localPath {
+    return [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         NSURL *rootURL = [NSURL fileURLWithPath:localPath];
         
         [subscriber sendNext:[NSNumber numberWithInt:FoundryPushStageBuildingManifest]];
@@ -740,10 +824,10 @@ NSString *FoundryPushStageString(FoundryPushStage stage) {
         
         [subscriber sendNext:[NSNumber numberWithInt:FoundryPushStageUploadingPackage]];
         
-        RACSubscribable *upload = [[endpoint authenticatedRequestWithMethod:@"PUT" path:[NSString stringWithFormat:@"/apps/%@/application", name] headers:@{
+        RACSignal *upload = [endpoint authenticatedRequestWithMethod:@"PUT" path:[NSString stringWithFormat:@"/apps/%@/application", name] headers:@{
                                    @"Content-Type": [NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary],
                                    @"Content-Length": [contentLength stringValue],
-                                    } body:[NSInputStream inputStreamWithFileAtPath:messagePath]] subscribeOn:[RACScheduler mainQueueScheduler]];
+                                    } body:[NSInputStream inputStreamWithFileAtPath:messagePath]];
         
         RACDisposable *inner = [upload subscribeNext:^(id x) {
             [subscriber sendNext:[NSNumber numberWithInt:FoundryPushStageFinished]];

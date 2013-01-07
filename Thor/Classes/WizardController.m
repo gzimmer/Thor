@@ -18,6 +18,7 @@
 
 - (void)setDisplaysLoadingView:(BOOL)value animated:(BOOL)animated;
 - (BOOL)displaysLoadingView;
+- (void)doLayout;
 
 @end
 
@@ -88,7 +89,6 @@
     
     if (self.contentView.subviews.count) {
         contentSize = ((NSView*)self.contentView.subviews[0]).intrinsicContentSize;
-        NSLog(@"Got contentView %@ intrinsic size %@", self.contentView.subviews[0], NSStringFromSize(contentSize));
     }
     
     if(contentSize.width == NSViewNoInstrinsicMetric)
@@ -97,7 +97,6 @@
         contentSize.height = 200;
     
     CGSize result = NSMakeSize(contentSize.width, contentSize.height + [self titleAreaHeight] + [self buttonAreaHeight]);
-    NSLog(@"returning size %@", NSStringFromSize(result));
     return result;
 }
 
@@ -131,74 +130,92 @@
     CGFloat titleAreaHeight = [self titleAreaHeight];
     CGFloat buttonAreaHeight = [self buttonAreaHeight];
     
-    NSLog(@"buttonAreaHeight = %f", buttonAreaHeight);
-    
     result[@"contentView"] = [NSValue valueWithRect:NSMakeRect(0, buttonAreaHeight, size.width, size.height - titleAreaHeight - buttonAreaHeight)];
     
-    
     result[@"loadingView"] = result[@"contentView"];
-    
-    NSLog(@"--- layout at %@ ----", NSStringFromRect(self.bounds));
     return result;
 }
 
-- (void)resizeWindow {
-    NSRect frame = self.window.frame;
-    NSSize newSize = self.intrinsicContentSize;
-    frame.origin.x += (frame.size.width - newSize.width) / 2;
-    frame.origin.y += frame.size.height - newSize.height;
-    frame.size = newSize;
-    
-    NSRect titleFrame = self.titleLabel.frame;
-    titleFrame.origin.y += frame.size.height - newSize.height;
-    
-    NSDictionary *windowResize = @{ NSViewAnimationTargetKey: self.window, NSViewAnimationEndFrameKey:[NSValue valueWithRect:frame] };
-    
-    
-    NSDictionary *rects = [self getLayoutRects];
-    NSArray *subviewsAnimations = [[rects allKeys] map:^id(id f) {
-        return @{ NSViewAnimationTargetKey: [self valueForKey:f], NSViewAnimationEndFrameKey: rects[f] };
-    }];
-    
-    NSArray *animations = [@[ windowResize ] arrayByAddingObjectsFromArray:subviewsAnimations];
-    NSViewAnimation *animation = [[NSViewAnimation alloc] initWithViewAnimations:animations];
-    
-    [animation setAnimationBlockingMode:NSAnimationBlocking];
-    [animation setAnimationCurve:NSAnimationEaseIn];
-    [animation setDuration:.3];
-    [animation startAnimation];
-    
-    //[self doLayout];
+- (void)resizeWindow:(void (^)(void))completion {
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = .1;
+        NSRect frame = self.window.frame;
+        NSSize newSize = self.intrinsicContentSize;
+        frame.origin.x += (frame.size.width - newSize.width) / 2;
+        frame.origin.y += frame.size.height - newSize.height;
+        frame.size = newSize;
+        [self.window.animator setFrame:frame display:YES];
+        
+        NSDictionary *rects = [self getLayoutRects];
+        [[rects allKeys] each:^(id f) {
+            NSView *view = (NSView *)[self valueForKey:f];
+            NSRect rect = [rects[f] rectValue];
+            NSLog(@"got view %@ for key %@ frame is\n%@", view, f, NSStringFromRect(rect));
+            ((NSView *)view.animator).frame = rect;
+            [view setNeedsDisplay:YES];
+        }];
+    } completionHandler:completion];
+}
+
+- (void)fadeOutContent:(void (^)(void))completion {
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = .1;
+        [self.contentView.animator setAlphaValue:0];
+    } completionHandler:completion];
+}
+
+- (void)fadeInContent:(void (^)(void))completion {
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = .1;
+        [self.contentView.animator setAlphaValue:1];
+    } completionHandler:completion];
 }
 
 - (void)pushToView:(NSView *)newView fromView:(NSView *)oldView {
-    CATransition *transition = [CATransition animation];
-    transition.type = kCATransitionPush;
-    transition.subtype = kCATransitionFromRight;
+    self.contentView.wantsLayer = YES;
+    self.wantsLayer = YES;
+    self.titleLabel.wantsLayer = YES;
     
-    self.contentView.animations = @{ @"subviews" : transition };
-    [self.contentView.animator replaceSubview:oldView with:newView];
-    [self resizeWindow];
-    self.needsLayout = YES;
+    [self performSelector:@selector(reallyPush:) withObject:@[newView, oldView] afterDelay:0];
+}
+
+- (void)reallyPush:(NSArray *)views {
+    NSView *newView = views[0];
+    NSView *oldView = views[1];
+    NSLog(@"no really");
+    
+    [self fadeOutContent:^ {
+        [self.contentView replaceSubview:oldView with:newView];
+        [self resizeWindow:^ {
+            [self doLayout];
+            [self fadeInContent:^ {
+                self.contentView.wantsLayer = NO;
+                self.wantsLayer = NO;
+                self.titleLabel.wantsLayer = NO;
+            }];
+        }];
+    }];
 }
 
 - (void)popToView:(NSView *)newView fromView:(NSView *)oldView {
-    CATransition *transition = [CATransition animation];
-    transition.type = kCATransitionPush;
-    transition.subtype = kCATransitionFromLeft;
-    
-    self.contentView.animations = @{ @"subviews" : transition };
-    [self.contentView.animator replaceSubview:oldView with:newView];
-    [self resizeWindow];
-    self.needsLayout = YES;
+    [self fadeOutContent:^ {
+        [self.contentView replaceSubview:oldView with:newView];
+        [self resizeWindow:^ {
+            [self doLayout];
+            [self fadeInContent:nil];
+        }];
+    }];
 }
 
-- (void)layout {
+- (void)doLayout {
     NSDictionary *rects = [self getLayoutRects];
     [[rects allKeys] each:^ (id f) {
         ((NSView *)[self valueForKeyPath:f]).frame = [rects[f] rectValue];
     }];
     ((NSView *)self.contentView.subviews[0]).frame = self.contentView.bounds;
+}
+
+- (void)layout {
     [super layout];
 }
 
@@ -207,7 +224,7 @@
 @interface WizardController ()
 
 @property (nonatomic, strong) NSViewController<WizardControllerAware> *currentController;
-@property (nonatomic, strong) NSArray *stack;
+@property (nonatomic, copy) NSArray *stack;
 @property (nonatomic, strong) WizardControllerView *wizardControllerView;
 @property (nonatomic, copy) void (^didEndBlock)();
 
@@ -217,13 +234,17 @@
 
 @synthesize isSinglePage, currentController = _currentController, stack, wizardControllerView, didEndBlock;
 
+- (void)updatePrevButtonState {
+    if (!isSinglePage)
+        self.wizardControllerView.prevButton.enabled = self.stack.count > 1;
+}
+
 - (void)setCurrentController:(NSViewController<WizardControllerAware> *)currentController {
     assert(currentController.title != nil);
     _currentController = currentController;
     [self viewWillAppearForController:currentController];
     self.wizardControllerView.titleLabel.stringValue = currentController.title;
-    if (!isSinglePage)
-        self.wizardControllerView.prevButton.enabled = self.stack.count > 1;
+    [self updatePrevButtonState];
     self.commitButtonTitle = currentController.commitButtonTitle;
 }
 
@@ -253,7 +274,7 @@
 
 - (id)initWithRootViewController:(NSViewController<WizardControllerAware> *)rootController {
     if (self = [super initWithNibName:nil bundle:nil]) {
-        _currentController = rootController;
+        self.currentController = rootController;
         self.currentController.wizardController = self;
         self.stack = @[ rootController ];
     }
@@ -264,25 +285,27 @@
     self.wizardControllerView = [[WizardControllerView alloc] initWithFrame:NSZeroRect];
     self.wizardControllerView.contentView.wantsLayer = YES;
     
-    [self.wizardControllerView.cancelButton addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    self.wizardControllerView.cancelButton.rac_command = [RACCommand commandWithBlock:^(id value) {
         for (NSInteger i = stack.count - 1; i >= 0; i--)
             [((NSViewController<WizardControllerAware> *)stack[i]) rollbackWizardPanel];
         
         [self dismissWithReturnCode:NSCancelButton];
-    }]];
-    [self.wizardControllerView.prevButton addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    }];
+    self.wizardControllerView.prevButton.rac_command = [RACCommand commandWithBlock:^(id value) {
         [self.currentController rollbackWizardPanel];
         
         [self popViewControllerAnimated:YES];
-    }]];
+    }];
     
     if (isSinglePage) {
         self.wizardControllerView.prevButton.hidden = YES;
     }
     
-    [self.wizardControllerView.nextButton addCommand:[RACCommand commandWithCanExecute:nil execute:^(id value) {
+    [self updatePrevButtonState];
+    
+    self.wizardControllerView.nextButton.rac_command = [RACCommand commandWithBlock:^(id value) {
         [self.currentController commitWizardPanel];
-    }]];
+    }];
     
     [wizardControllerView.contentView addSubview:self.currentController.view];
     self.view = wizardControllerView;
@@ -298,8 +321,7 @@
     [self viewWillAppearForController:self.currentController];
     assert(self.currentController.title != nil);
     self.wizardControllerView.titleLabel.stringValue = self.currentController.title;
-    self.view.needsLayout = YES;
-    [self.view layoutSubtreeIfNeeded];
+    [(WizardControllerView *)self.view doLayout];
 }
 
 - (void)pushViewController:(NSViewController<WizardControllerAware> *)controller animated:(BOOL)animated {
